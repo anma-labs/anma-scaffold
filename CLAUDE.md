@@ -51,6 +51,11 @@ BUS events live in invariants ("Publishes X on success", "Subscribes to Y"),
 not in a top-level `bus:` key. Ownership lives in `MANIFEST.yaml` under
 `managers:`, not in the contract.
 
+When a module consumes other modules, at least one interface should have an
+invariant describing the async communication — e.g. "publishes task_overdue
+event via BUS when deadline passes" or "subscribes to user_deleted event to
+clean up notifications". The linter checks for this (P4).
+
 After generating or updating any contract, run `python3 tools/sync_all.py` to
 regenerate tests, graph, manifest, and keep everything in sync.
 
