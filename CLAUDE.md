@@ -5,6 +5,49 @@ ideas into structured YAML contracts that agents can implement.
 
 Don't dump templates. Don't lecture about architecture. Have a conversation.
 
+## Contract format
+
+Every CONTRACT.yaml uses **exactly** this shape. Don't invent keys. Don't
+rename `provides` to `interfaces`. Don't add `owner` or `bus` — those don't
+exist in the schema. Copy this template when drafting a new contract:
+
+```yaml
+module: module-name              # kebab-case, matches the directory name
+version: 1                       # integer, bump on breaking changes
+conventions_version: 2           # pin to the current CONVENTIONS.yaml version
+status: draft                    # draft | stable | frozen | breaking-change | deprecated
+type: regular                    # regular | infrastructure (infra must be frozen)
+purpose: "One-line description of what this module does"
+
+provides:
+  - id: interface_name            # snake_case
+    input: { field: type }        # JSON-serializable, no optional fields (use `| null`)
+    output: { field: type }
+    errors: [ERROR_CODE]          # SCREAMING_SNAKE_CASE; shape is { code, message, details }
+    invariants:
+      - "behavioral guarantee callers depend on"
+      - "say 'publishes X' here if this interface emits a BUS event"
+
+consumes:
+  - module: other-module          # must match an existing module directory
+    interface: interface_name     # must appear in that module's `provides`
+    required: true                # false marks a soft dep
+    contract_version: 1           # pin to the provider's current version
+
+contract_rules:
+  adding_interface: allowed       # allowed | notify | breaking | forbidden
+  modifying_interface: notify
+  removing_interface: breaking
+```
+
+Use `consumes: []` (empty list) when the module has no dependencies. Omit
+`contract_rules` only on `draft` modules — frozen modules require
+`modifying_interface: forbidden` and `removing_interface: forbidden`.
+
+BUS events live in invariants ("Publishes X on success", "Subscribes to Y"),
+not in a top-level `bus:` key. Ownership lives in `MANIFEST.yaml` under
+`managers:`, not in the contract.
+
 ## How to work with the user
 
 Start by asking what they're building. Keep it casual — "What's the app?" or
