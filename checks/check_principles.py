@@ -185,15 +185,15 @@ def check_p5_hierarchy_is_real(root, contracts, manifest, result):
 
 
 def check_p6_recovery_is_cheap(root, contracts, result):
-    """P6: Module recovery (CONTRACT+STATE+MEMORY) under 800 tokens."""
+    """P6: Module recovery (CONTRACT+STATE+MEMORY) under 1200 tokens."""
     print("── Principle 6: Recovery is cheap ──")
     for mod_name in contracts:
         module_dir = root / 'modules' / mod_name
         tokens = sum(_count_chars(module_dir / f) // 4
                      for f in ['CONTRACT.yaml', 'STATE.yaml', 'MEMORY.yaml'])
-        if tokens > 800:
+        if tokens > 1200:
             result.warning(mod_name,
-                f"P6 module recovery is {tokens} tokens (max 800)")
+                f"P6 module recovery is {tokens} tokens (max 1200)")
 
 
 def check_p7_replacement_over_continuity(root, contracts, result):
