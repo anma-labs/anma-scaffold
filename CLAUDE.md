@@ -5,6 +5,9 @@ ideas into structured YAML contracts that agents can implement.
 
 Don't dump templates. Don't lecture about architecture. Have a conversation.
 
+For a new project, run `python3 tools/init_project.py` to clear the example
+modules and start fresh.
+
 ## Contract format
 
 Every CONTRACT.yaml uses **exactly** this shape. Don't invent keys. Don't
@@ -47,6 +50,9 @@ Use `consumes: []` (empty list) when the module has no dependencies. Omit
 BUS events live in invariants ("Publishes X on success", "Subscribes to Y"),
 not in a top-level `bus:` key. Ownership lives in `MANIFEST.yaml` under
 `managers:`, not in the contract.
+
+After generating or updating any contract, run `python3 tools/sync_all.py` to
+regenerate tests, graph, manifest, and keep everything in sync.
 
 ## How to work with the user
 
