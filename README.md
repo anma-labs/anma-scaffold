@@ -238,6 +238,14 @@ Modules progress through: `draft` → `stable` → `frozen`. Frozen contracts ca
 
 No other dependencies. ANMA is a convention and a set of scripts, not a framework you install.
 
+## Roadmap
+
+- [ ] Automated contract-to-code validation
+- [ ] npx create-anma CLI installer
+- [ ] GitHub Actions CI workflow
+- [ ] VS Code extension for contract editing
+- [ ] ANMA Cloud dashboard
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
