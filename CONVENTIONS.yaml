@@ -82,4 +82,27 @@ dependency_rules:
     example_direct: "matching → user-profiles.get_profile (synchronous, frequent)"
     example_bus: "auth delete_account → all modules cleanup (one-to-many fan-out)"
 
+principles:
+  - id: contracts-over-code
+    rule: "Contracts describe behavior. Never reference implementations."
+    enforced_by: "check_principles.py P1"
+  - id: tokens-are-bottleneck
+    rule: "Single contract max 400 tokens. Recovery max 1,500 tokens."
+    enforced_by: "check_principles.py P2"
+  - id: state-is-explicit
+    rule: "Non-draft STATE.yaml must reflect actual implementation status."
+    enforced_by: "check_principles.py P3"
+  - id: communication-is-async
+    rule: "Cross-module deps require BUS events. No silent coupling."
+    enforced_by: "check_principles.py P4"
+  - id: hierarchy-is-real
+    rule: "Every module has a manager. No manager owns more than 7 modules."
+    enforced_by: "check_principles.py P5"
+  - id: recovery-is-cheap
+    rule: "Module recovery payload (CONTRACT+STATE+MEMORY) under 500 tokens."
+    enforced_by: "check_principles.py P6"
+  - id: replacement-over-continuity
+    rule: "MEMORY.yaml is structured insights, not logs or code."
+    enforced_by: "check_principles.py P7"
+
 deprecated_rules: []
