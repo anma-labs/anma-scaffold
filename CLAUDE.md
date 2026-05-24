@@ -85,6 +85,13 @@ Don't skip steps. Don't read source before contracts.
 python3 tools/new_module.py <name> --manager <manager> --consumes <deps>
 ```
 
+## Reference
+
+- Contract statuses: draft, stable, frozen, breaking-change, deprecated
+- MEMORY.yaml: max 20 entries, each under 100 characters, curate don't append
+- BUS: publish changes to BUS/deltas/, read BUS files on every task
+- Never edit another module's files — use BUS/requests/
+
 ## The goal
 
 A developer or AI agent with zero context opens any module's 6 files and
