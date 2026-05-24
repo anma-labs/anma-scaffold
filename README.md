@@ -73,8 +73,6 @@ your-project/
     todo-api/
       CONTRACT.yaml
       ...
-  managers/             # Agent groups that own sets of modules
-  orchestrator/         # Top-level coordination
   BUS/                  # Inter-module communication
     requests/           # Cross-module change requests
     deltas/             # Contract change notifications

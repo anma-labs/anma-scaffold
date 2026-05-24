@@ -32,8 +32,6 @@ project-root/
 │           ├── requests/  # Incoming change requests from other modules
 │           └── deltas/    # Outgoing contract change notifications
 │
-├── managers/              # Agent groups that own sets of modules
-├── orchestrator/          # Top-level coordination logic
 ├── BUS/                   # Project-wide inter-module communication
 │   ├── requests/
 │   └── deltas/
@@ -145,21 +143,26 @@ consumes:
 
 **Rule of thumb:** Direct when synchronous/frequent/stable. BUS when one-time/fire-and-forget/cross-cutting.
 
-## Managers and Orchestrator
+## Multi-Agent Workflows
 
-### Managers
+ANMA supports a three-level agent hierarchy: **module agents** → **managers** → **orchestrator**.
 
-Group related modules under a single owner. A manager is responsible for coordination within its group.
+- **Module agents** work on a single module. They read the module's 6 files, implement interfaces, and write to MEMORY.yaml and STATE.yaml. They never touch another module's files.
+- **Managers** scope which modules an agent can touch. A manager owns a group of related modules and coordinates work within that group — sequencing tasks, resolving intra-group dependencies, and reviewing contract changes.
+- **The orchestrator** delegates across managers. It handles project-wide concerns: cross-cutting migrations, contract freezes, dependency conflicts between manager groups.
+
+This maps to MANIFEST.yaml:
 
 ```yaml
-# MANIFEST.yaml
 managers:
   core-manager: { owns: [user-auth, todo-api, notifications] }
+
+orchestrator: active
 ```
 
-### Orchestrator
+The hierarchy maps naturally to subagent systems like Claude Code's `.claude/agents/`, where each agent file can be scoped to a manager's module set. The linter enforces manager assignments (P5: every module has a manager, no manager owns more than 7 modules).
 
-Coordinates across managers. Handles project-wide concerns: contract freezes, cross-cutting migrations, dependency conflicts.
+**Current status:** The hierarchy is designed and the linter validates it. Multi-agent orchestration across managers hasn't been demonstrated end-to-end yet — working examples will be added when validated in production.
 
 ## Contract Lifecycle
 
