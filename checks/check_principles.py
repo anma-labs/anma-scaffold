@@ -176,7 +176,7 @@ def check_p5_hierarchy_is_real(root, contracts, manifest, result):
         meta = modules_section.get(mod_name, {})
         if not isinstance(meta, dict):
             meta = {}
-        manager = meta.get('manager', '')
+        manager = meta.get('manager') or meta.get('owner', '')
         if not manager and str(contracts[mod_name].get('status', 'draft')).lower() != 'draft':
             result.warning(mod_name, "P5 no manager assigned in MANIFEST.yaml")
         elif manager:
