@@ -52,7 +52,7 @@ claude
 > Read the task-mgmt module CONTRACT.yaml and implement all interfaces.
 ```
 
-Claude Code reads the contract (~250 tokens), sees every interface, input, output, error, and invariant, and implements the module.
+Claude Code reads the contract (~350 tokens), sees every interface, input, output, error, and invariant, and implements the module.
 
 Repeat for each module. The contracts are the spec.
 
