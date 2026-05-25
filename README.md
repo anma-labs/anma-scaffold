@@ -2,6 +2,8 @@
 
 **Structured contracts that let AI agents understand your codebase in ~350 tokens instead of 5,000-20,000.**
 
+**No hallucinated interfaces. No undeclared dependencies. No silent integration bugs.**
+
 Built for Claude Code. Contracts are plain YAML — readable by any AI tool, but the full design-to-implementation workflow is optimized for Claude Code.
 
 ---
@@ -63,55 +65,105 @@ Tell an agent "implement all interfaces in this contract" and it knows every inp
 
 ## Getting Started
 
-### Try it (1 minute)
+**Path 1** if you want Claude to handle everything in one conversation.
+**Path 2** if you're a developer who wants control over each step.
+
+### Path 1: Conversational (recommended)
+
+Open [Claude](https://claude.ai) (Opus 4.6+) and start a conversation.
+
+If you have research files, design docs, wireframes, or reference material —
+upload them now. Claude uses them to write better contracts.
+
+> "Clone https://github.com/nxy/anma-scaffold and read the CLAUDE.md and
+> CONVENTIONS.yaml. Let me know when you're ready to build a project with me."
+
+Claude clones the repo, reads the architecture rules, and becomes your contract
+architect. Now describe what you want to build:
+
+> "I want to build a URL shortener. Users create API keys, shorten URLs with
+> custom slugs, click tracking with analytics, and rate limiting."
+
+Claude designs the module contracts — identifying boundaries (auth, links,
+analytics, rate-limiter), defining interfaces with inputs, outputs, errors,
+and invariants. It asks clarifying questions and iterates with you until the
+design is right.
+
+When the contracts look good:
+
+> "Set up the project and implement all modules."
+
+Claude handles the rest — clears examples, imports contracts, validates them
+against the linter, and implements each module. If it discovers contract gaps
+during implementation (an undeclared dependency, a missing error code), it
+flags them, revises the contracts, and updates the code.
+
+When implementation is done:
+
+> "Create app.py that wires all modules together."
+
+Claude reads the contracts, knows every interface, and builds the application.
+
+### Path 2: Terminal (developer workflow)
+
+For developers who want hands-on control at each step.
 
 ```bash
 git clone https://github.com/nxy/anma-scaffold my-project
 cd my-project
-python3 tools/lint_contracts.py
+pip install pyyaml
 ```
 
-Three example modules, 14 interfaces, 0 errors. Browse `modules/user-auth/CONTRACT.yaml` to see the full contract.
-
-### Start your project (5 minutes)
-
-You spend 10 minutes designing contracts upfront so your AI agent doesn't waste hours guessing later.
-
-**1. Design your contracts.**
-
-Upload `CLAUDE.md` and `CONVENTIONS.yaml` to any AI chat — Claude, ChatGPT, Gemini — and describe what you're building:
-
-> "I uploaded my ANMA scaffold files. I want to build a project management tool.
-> Teams can create projects, add tasks with deadlines, assign them to people,
-> and get notified when things change."
-
-The AI drafts contracts, asks clarifying questions, and iterates with you. When the contracts look right:
-
-> "Give me all CONTRACT.yaml files so I can save them and run the linter."
-
-Save each file as `<module-name>-CONTRACT.yaml`.
+**1. Design contracts.** Upload `CLAUDE.md` and `CONVENTIONS.yaml` to
+[Claude](https://claude.ai) and describe what you're building. Claude drafts
+contracts following the ANMA format and provides them as downloadable files.
 
 **2. Import and validate.**
 
 ```bash
-python3 tools/init_project.py                                 # clear example modules
+python3 tools/init_project.py                                 # clear examples
 python3 tools/import_contracts.py ~/Downloads/*-CONTRACT.yaml  # import, sync, lint
 ```
 
-One command creates module directories, copies contracts, generates all supporting files (STATE, MEMORY, TESTS, GRAPH, MANIFEST), and runs the linter.
+One command creates module directories, copies contracts, generates all
+supporting files, and runs the linter. If there are errors, fix the contracts
+and re-import. Target 0 errors before moving to implementation.
 
-**3. Implement.**
+**3. Implement with Claude Code.**
 
 ```bash
 claude
-> Read the user-auth module CONTRACT.yaml and implement all interfaces.
+> Read all module contracts and implement them.
 ```
 
-Claude Code reads the contract (~350 tokens), sees every interface, and implements the module. No hallucinated endpoints, no guessed error types, no missing invariants.
+Claude Code reads CLAUDE.md, knows the architecture, and implements each module.
+It handles dependency ordering, updates STATE.yaml with progress, and captures
+decisions in MEMORY.yaml.
+
+**4. Discover and revise.**
+
+If implementation surfaces contract gaps, revise and re-import:
+
+```bash
+python3 tools/import_contracts.py revised-CONTRACT.yaml --force
+```
+
+Contracts catching integration bugs is ANMA working as designed.
+
+**5. Wire and ship.**
+
+```bash
+> Create app.py that wires all modules together.
+```
+
+Both paths produce the same result: a project with explicit contracts,
+validated dependencies, and code that matches the spec.
 
 ## Real Numbers
 
-A production test scaffolded 18 modules with 104 interfaces in a single Claude Code session:
+In a 4-module demo (URL shortener), contracts caught 5 integration bugs during implementation — undeclared dependencies, missing error codes, absent BUS events — that would have been silent failures without ANMA.
+
+At scale, a production test scaffolded 18 modules with 104 interfaces in a single Claude Code session:
 
 | Metric | Value |
 |--------|-------|
@@ -171,7 +223,7 @@ Run `python3 tools/anma.py` for the full list. All tools also work standalone (e
 OpenAPI describes HTTP endpoints. ANMA describes module boundaries — interfaces, invariants, errors, dependencies, state, and institutional memory. You can use both: OpenAPI for your public API, ANMA for internal architecture.
 
 **Do I have to use Claude?**
-Design phase: any LLM. Implementation: tested with Claude Code, which auto-reads CLAUDE.md and follows the contract workflow.
+The full workflow is built for Claude. The contract format is plain YAML, so other LLMs can read it, but only Claude has been tested end-to-end.
 
 **Isn't this just writing documentation?**
 Documentation describes what code does. Contracts prescribe what code must do — with machine-parseable inputs, outputs, errors, and invariants that a linter enforces. Documentation drifts. Contracts break the build.
