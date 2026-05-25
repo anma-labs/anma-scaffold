@@ -161,7 +161,7 @@ validated dependencies, and code that matches the spec.
 
 ## Real Numbers
 
-In a 4-module demo (URL shortener), contracts caught 5 integration bugs during implementation — undeclared dependencies, missing error codes, absent BUS events — that would have been silent failures without ANMA.
+In a [4-module demo (URL shortener)](https://github.com/nxy/anma-demo-url-shortener), contracts caught 5 integration bugs during implementation — undeclared dependencies, missing error codes, absent BUS events — that would have been silent failures without ANMA.
 
 At scale, a production test scaffolded 18 modules with 104 interfaces in a single Claude Code session:
 
