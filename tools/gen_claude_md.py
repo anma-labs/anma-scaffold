@@ -247,6 +247,8 @@ def main():
                         help='Output path (default: CLAUDE.md or modules/<mod>/CLAUDE.md)')
     parser.add_argument('--path', type=str, default='.',
                         help='Project root path (default: current directory)')
+    parser.add_argument('--force', action='store_true',
+                        help='Overwrite existing CLAUDE.md (required if file exists)')
     args = parser.parse_args()
 
     root = Path(args.path).resolve()
@@ -262,6 +264,12 @@ def main():
     else:
         content = generate_project_claude_md(root)
         output = Path(args.output) if args.output else root / 'CLAUDE.md'
+
+    if output.exists() and not args.force:
+        print(f"ERROR: {output} already exists.")
+        print(f"  This file may contain custom content that would be lost.")
+        print(f"  Use --force to overwrite, or --output to write elsewhere.")
+        sys.exit(1)
 
     output.write_text(content)
     print(f"Generated {output}")

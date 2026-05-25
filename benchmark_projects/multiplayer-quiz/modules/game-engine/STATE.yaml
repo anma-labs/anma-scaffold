@@ -1,5 +1,0 @@
-module: game-engine
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: start_game and submit_answer done, round flow in progress
-blockers: []

@@ -1,8 +1,0 @@
-project: cli-sitegen
-managers:
-  core:
-    modules:
-    - parser
-    - theme-engine
-    - builder
-    - dev-server

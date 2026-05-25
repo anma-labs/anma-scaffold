@@ -1,5 +1,0 @@
-module: auth-gateway
-status: green
-updated: '2026-05-24T00:00:00Z'
-current_work: API key and JWT validation complete
-blockers: []

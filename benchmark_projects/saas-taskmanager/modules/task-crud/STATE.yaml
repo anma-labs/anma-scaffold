@@ -1,5 +1,0 @@
-module: task-crud
-status: green
-updated: '2026-05-24T00:00:00Z'
-current_work: 5/5 interfaces implemented, pagination tested
-blockers: []

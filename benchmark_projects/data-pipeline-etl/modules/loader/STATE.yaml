@@ -1,5 +1,0 @@
-module: loader
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: Append mode works, upsert in progress
-blockers: []

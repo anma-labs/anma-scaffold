@@ -1,4 +1,0 @@
-module: social
-entries:
-- type: decision
-  content: "Activity feed is fan-out-on-read \u2014 simpler than fan-out-on-write for v1"

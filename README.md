@@ -40,7 +40,9 @@ No ambiguity. No guessing. No wasted tokens.
 
 ## Real Numbers
 
-In testing, a project using ANMA scaffolded 18 modules with 104 interfaces for $31 in one Claude Code session. These results are reproducible:
+This repo ships with 3 example modules (14 interfaces, ~350 tokens each) so you can explore the contract format and run the linter immediately.
+
+At scale, a production test scaffolded 18 modules with 104 interfaces in a single Claude Code session:
 
 | Metric | Value |
 |--------|-------|

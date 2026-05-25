@@ -1,6 +1,0 @@
-module: reports
-entries:
-- type: decision
-  content: "Single-currency reports only \u2014 simplifies approval workflow"
-- type: pattern
-  content: 'Amount-based routing: <$500 auto-approved, $500-5000 manager, >5000 finance'

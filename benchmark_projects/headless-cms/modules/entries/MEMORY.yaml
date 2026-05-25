@@ -1,8 +1,0 @@
-module: entries
-entries:
-- type: decision
-  content: "Version history is immutable \u2014 no editing old versions"
-- type: warning
-  content: "Publishing validates all required fields \u2014 draft can have gaps"
-- type: pattern
-  content: Separate draft and published versions allow preview workflows

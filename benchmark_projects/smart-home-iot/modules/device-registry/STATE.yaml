@@ -1,5 +1,0 @@
-module: device-registry
-status: green
-updated: '2026-05-24T00:00:00Z'
-current_work: Discovery and registration complete for zigbee and wifi
-blockers: []

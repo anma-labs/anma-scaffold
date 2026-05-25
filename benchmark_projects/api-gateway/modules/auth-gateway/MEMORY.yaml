@@ -1,6 +1,0 @@
-module: auth-gateway
-entries:
-- type: decision
-  content: "API key shown once at creation \u2014 hash stored, no retrieval"
-- type: warning
-  content: "JWT validation needs JWKS endpoint configured \u2014 fails hard without it"

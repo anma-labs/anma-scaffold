@@ -1,6 +1,0 @@
-module: game-engine
-entries:
-- type: decision
-  content: 'Scoring: 1000 * (1 - time_ms/max_time_ms) for correct, 0 for wrong'
-- type: pattern
-  content: "Timer is authoritative server-side \u2014 client timers are cosmetic"

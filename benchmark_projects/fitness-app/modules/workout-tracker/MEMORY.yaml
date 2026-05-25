@@ -1,8 +1,0 @@
-module: workout-tracker
-entries:
-- type: decision
-  content: "RPE (rate of perceived exertion) optional \u2014 not all users track it"
-- type: warning
-  content: "PR detection compares against all history \u2014 slow for 1000+ workouts"
-- type: pattern
-  content: "Exercise IDs are slugs (bench-press) not UUIDs \u2014 human readable"

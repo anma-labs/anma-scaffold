@@ -1,4 +1,0 @@
-module: notifications
-entries:
-- type: decision
-  content: "BUS-driven \u2014 no direct calls from task-crud or team-mgmt"

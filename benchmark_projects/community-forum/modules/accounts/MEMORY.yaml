@@ -1,4 +1,0 @@
-module: accounts
-entries:
-- type: decision
-  content: "Reputation is read-only derived value \u2014 no direct manipulation"

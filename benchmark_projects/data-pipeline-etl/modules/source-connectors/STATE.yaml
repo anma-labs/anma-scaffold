@@ -1,5 +1,0 @@
-module: source-connectors
-status: green
-updated: '2026-05-24T00:00:00Z'
-current_work: CSV and API extractors complete, DB export planned
-blockers: []

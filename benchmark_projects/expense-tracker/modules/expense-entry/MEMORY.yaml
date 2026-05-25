@@ -1,8 +1,0 @@
-module: expense-entry
-entries:
-- type: decision
-  content: "Amounts in cents with explicit currency \u2014 no float arithmetic"
-- type: decision
-  content: Draft expenses editable, submitted expenses locked
-- type: warning
-  content: Multi-currency expenses need conversion at report time, not entry time

@@ -1,4 +1,0 @@
-module: voting
-entries:
-- type: decision
-  content: "Asymmetric reputation: +10 per upvote, -2 per downvote \u2014 net positive bias"

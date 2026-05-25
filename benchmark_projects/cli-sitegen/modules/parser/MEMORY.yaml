@@ -1,6 +1,0 @@
-module: parser
-entries:
-- type: decision
-  content: "CommonMark spec with GFM tables \u2014 no custom syntax extensions"
-- type: warning
-  content: Large directories (500+ files) need streaming, not batch parse

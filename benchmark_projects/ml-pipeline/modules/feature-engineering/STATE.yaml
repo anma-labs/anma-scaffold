@@ -1,5 +1,0 @@
-module: feature-engineering
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: normalize and one_hot implemented, others pending
-blockers: []

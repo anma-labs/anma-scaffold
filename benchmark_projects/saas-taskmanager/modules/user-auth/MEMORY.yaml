@@ -1,8 +1,0 @@
-module: user-auth
-entries:
-- type: decision
-  content: JWT chosen over session cookies for stateless scaling
-- type: warning
-  content: Rate limiter on reset_password prevents email enumeration
-- type: pattern
-  content: Token refresh happens client-side, not via dedicated endpoint

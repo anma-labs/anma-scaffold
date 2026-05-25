@@ -1,5 +1,0 @@
-module: user-roles
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: Role CRUD done, per-type permissions pending
-blockers: []

@@ -1,4 +1,0 @@
-module: order-mgmt
-entries:
-- type: decision
-  content: "Cancel auto-refunds \u2014 no separate refund request flow in v1"

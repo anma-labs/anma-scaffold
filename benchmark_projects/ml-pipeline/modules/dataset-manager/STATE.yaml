@@ -1,5 +1,0 @@
-module: dataset-manager
-status: green
-updated: '2026-05-24T00:00:00Z'
-current_work: All interfaces implemented, parquet support tested
-blockers: []

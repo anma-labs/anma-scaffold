@@ -1,5 +1,0 @@
-module: nutrition
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: Food search and logging done, daily summary in progress
-blockers: []

@@ -1,6 +1,0 @@
-module: question-bank
-entries:
-- type: decision
-  content: "4 options per question, exactly 1 correct \u2014 no multi-answer"
-- type: warning
-  content: exclude_ids list over 200 dramatically slows query

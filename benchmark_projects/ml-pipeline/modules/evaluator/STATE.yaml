@@ -1,5 +1,0 @@
-module: evaluator
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: evaluate_model done, compare_runs pending
-blockers: []

@@ -1,6 +1,0 @@
-module: transform
-entries:
-- type: decision
-  content: Declarative rules over imperative scripts for auditability
-- type: discovery
-  content: "Deduplicate must run before derive \u2014 derived fields break dedup keys"

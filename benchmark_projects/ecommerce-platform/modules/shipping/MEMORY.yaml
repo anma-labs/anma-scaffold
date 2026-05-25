@@ -1,4 +1,0 @@
-module: shipping
-entries:
-- type: decision
-  content: "Multi-carrier abstraction \u2014 same interface for all carriers"

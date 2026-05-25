@@ -1,8 +1,0 @@
-module: request-router
-entries:
-- type: decision
-  content: Trie-based matching for O(path_length) route resolution
-- type: warning
-  content: "Overlapping wildcards resolved by specificity \u2014 document for users"
-- type: pattern
-  content: "Route registration is hot \u2014 no restart needed"

@@ -1,6 +1,0 @@
-module: device-registry
-entries:
-- type: decision
-  content: Device IDs are manufacturer-assigned, not UUIDs
-- type: warning
-  content: "Bluetooth discovery drains hub battery \u2014 disable unless requested"

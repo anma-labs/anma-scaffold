@@ -1,5 +1,0 @@
-module: scheduler
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: Manual run works, cron scheduling not started
-blockers: []

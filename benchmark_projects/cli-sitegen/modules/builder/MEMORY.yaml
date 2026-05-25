@@ -1,6 +1,0 @@
-module: builder
-entries:
-- type: decision
-  content: Full clean build first, incremental later as optimization
-- type: warning
-  content: "RSS feed generation assumes date in frontmatter \u2014 crashes without it"

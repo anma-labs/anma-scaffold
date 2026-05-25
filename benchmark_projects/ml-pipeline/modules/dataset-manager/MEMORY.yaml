@@ -1,8 +1,0 @@
-module: dataset-manager
-entries:
-- type: decision
-  content: "Versioning by name \u2014 re-register bumps version, old versions kept"
-- type: warning
-  content: Large datasets (10GB+) need streaming get_batch, not full load
-- type: pattern
-  content: Seed stored with split for exact reproducibility

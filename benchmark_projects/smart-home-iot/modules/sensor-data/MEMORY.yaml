@@ -1,6 +1,0 @@
-module: sensor-data
-entries:
-- type: decision
-  content: 'Auto-resolution: <1 day=raw, <7 days=5min, <30 days=hourly, else daily'
-- type: discovery
-  content: "Raw readings at 1/sec from 20 sensors = 1.7M rows/day \u2014 need retention policy"

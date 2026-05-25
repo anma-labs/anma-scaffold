@@ -1,4 +1,0 @@
-module: exercise-library
-entries:
-- type: decision
-  content: "Frozen \u2014 exercise data is reference, not user-editable"

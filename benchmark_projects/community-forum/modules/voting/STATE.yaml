@@ -1,5 +1,0 @@
-module: voting
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: Voting logic done, reputation sync pending
-blockers: []

@@ -1,4 +1,0 @@
-module: scheduler
-entries:
-- type: decision
-  content: "Sequential steps only \u2014 no parallel execution in v1"

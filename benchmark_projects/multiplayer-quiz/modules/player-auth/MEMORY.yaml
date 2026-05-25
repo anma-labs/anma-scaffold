@@ -1,4 +1,0 @@
-module: player-auth
-entries:
-- type: decision
-  content: "Guest-first flow \u2014 registration optional, convert later"

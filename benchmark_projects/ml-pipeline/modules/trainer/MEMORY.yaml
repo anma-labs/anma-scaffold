@@ -1,6 +1,0 @@
-module: trainer
-entries:
-- type: decision
-  content: "All hyperparams logged automatically \u2014 no manual tracking"
-- type: warning
-  content: "Neural training without GPU falls back to CPU \u2014 very slow"

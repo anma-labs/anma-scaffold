@@ -1,4 +1,0 @@
-module: private-messages
-entries:
-- type: decision
-  content: "Conversations auto-grouped by participant pair \u2014 no explicit create"

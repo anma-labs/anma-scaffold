@@ -1,6 +1,0 @@
-module: posts
-entries:
-- type: decision
-  content: "Soft delete preserves thread coherence \u2014 replies still make sense"
-- type: warning
-  content: "Edit window enforced server-side \u2014 client should hide edit button after 30min"

@@ -1,5 +1,0 @@
-module: rate-limiter
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: Sliding window implemented, per-key overrides pending
-blockers: []

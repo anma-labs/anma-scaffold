@@ -1,5 +1,0 @@
-module: receipt-scanner
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: Upload done, OCR integration in progress
-blockers: []

@@ -1,4 +1,0 @@
-module: goals
-entries:
-- type: decision
-  content: "Linear projection for on_track \u2014 simple but effective for v1"

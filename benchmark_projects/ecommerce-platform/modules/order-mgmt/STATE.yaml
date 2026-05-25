@@ -1,5 +1,0 @@
-module: order-mgmt
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: get_order and list_orders done
-blockers: []

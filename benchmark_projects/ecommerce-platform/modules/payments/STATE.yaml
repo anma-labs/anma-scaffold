@@ -1,5 +1,0 @@
-module: payments
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: Charge interface with test gateway
-blockers: []

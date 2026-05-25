@@ -1,8 +1,0 @@
-module: source-connectors
-entries:
-- type: decision
-  content: "Streaming for large files, batch for small \u2014 threshold at 100MB"
-- type: warning
-  content: "API pagination type must match source \u2014 cursor vs offset mismatch silently drops rows"
-- type: pattern
-  content: All extractors return uniform [object] regardless of source type

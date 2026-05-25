@@ -1,6 +1,0 @@
-module: checkout
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: initiate and set_shipping done, place_order in progress
-blockers:
-- needs payments module

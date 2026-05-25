@@ -1,6 +1,0 @@
-module: threads
-entries:
-- type: decision
-  content: View count incremented per unique user per 24h, not per page load
-- type: pattern
-  content: "Pinned threads use sort weight \u2014 always float to top of listing"

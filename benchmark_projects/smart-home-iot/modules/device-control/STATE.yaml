@@ -1,5 +1,0 @@
-module: device-control
-status: green
-updated: '2026-05-24T00:00:00Z'
-current_work: All commands implemented for supported device types
-blockers: []

@@ -1,6 +1,0 @@
-module: lobby
-entries:
-- type: decision
-  content: Lobbies auto-destroy after 10 min of inactivity
-- type: pattern
-  content: Host migration on leave prevents orphaned lobbies

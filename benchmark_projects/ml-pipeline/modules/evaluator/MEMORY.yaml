@@ -1,4 +1,0 @@
-module: evaluator
-entries:
-- type: decision
-  content: Primary metric auto-selected by task type, overridable

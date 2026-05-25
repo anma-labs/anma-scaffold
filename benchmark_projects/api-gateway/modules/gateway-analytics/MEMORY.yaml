@@ -1,4 +1,0 @@
-module: gateway-analytics
-entries:
-- type: decision
-  content: "Sample 10% of requests for percentile calculation \u2014 full logging too expensive"

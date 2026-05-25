@@ -1,4 +1,0 @@
-module: api-delivery
-entries:
-- type: decision
-  content: "Cache invalidation via BUS subscription \u2014 no polling"

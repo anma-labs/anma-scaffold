@@ -1,4 +1,0 @@
-module: moderation
-entries:
-- type: decision
-  content: "Auto-hide at 5 flags \u2014 reduces moderator urgency while protecting community"

@@ -1,6 +1,0 @@
-module: team-mgmt
-entries:
-- type: decision
-  content: "Flat role model (admin/member/viewer) \u2014 no custom roles yet"
-- type: discovery
-  content: "Invite codes need expiry \u2014 currently permanent"

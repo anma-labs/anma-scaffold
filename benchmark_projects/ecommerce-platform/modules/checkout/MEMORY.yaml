@@ -1,6 +1,0 @@
-module: checkout
-entries:
-- type: decision
-  content: 'Two-phase: reserve on initiate, confirm on place_order'
-- type: warning
-  content: INVENTORY_CHANGED error if stock drops between initiate and place

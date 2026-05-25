@@ -1,6 +1,0 @@
-module: automations
-entries:
-- type: decision
-  content: "AND logic for conditions \u2014 OR requires multiple rules"
-- type: warning
-  content: Cascading rules (action triggers another rule) need loop detection

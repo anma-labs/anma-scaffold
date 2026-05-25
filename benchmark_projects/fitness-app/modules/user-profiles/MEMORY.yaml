@@ -1,6 +1,0 @@
-module: user-profiles
-entries:
-- type: decision
-  content: "Weight history append-only \u2014 supports progress visualization"
-- type: pattern
-  content: "BMI computed on read, not stored \u2014 avoids stale derived data"

@@ -1,4 +1,0 @@
-module: model-registry
-entries:
-- type: decision
-  content: "Production deploy gated on eval metrics \u2014 no manual override in v1"

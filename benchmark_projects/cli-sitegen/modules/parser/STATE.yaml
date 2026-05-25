@@ -1,5 +1,0 @@
-module: parser
-status: green
-updated: '2026-05-24T00:00:00Z'
-current_work: Parsing complete, frontmatter extraction tested
-blockers: []

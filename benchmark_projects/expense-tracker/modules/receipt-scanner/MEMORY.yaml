@@ -1,6 +1,0 @@
-module: receipt-scanner
-entries:
-- type: decision
-  content: Confidence score lets users know when to verify extracted data
-- type: discovery
-  content: "PDF receipts need page-1-only extraction \u2014 multi-page kills accuracy"

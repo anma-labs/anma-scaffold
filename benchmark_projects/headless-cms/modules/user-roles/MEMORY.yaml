@@ -1,4 +1,0 @@
-module: user-roles
-entries:
-- type: decision
-  content: "Per-type permissions for editors \u2014 admins bypass everything"

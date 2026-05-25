@@ -1,5 +1,0 @@
-module: trainer
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: Linear and tree models trainable, neural in progress
-blockers: []

@@ -29,7 +29,8 @@ from lint_contracts import (
     check_managers_orchestrator, check_delta_accuracy,
 )
 
-SCAFFOLD_ROOT = Path(__file__).parent
+TOOLS_DIR = Path(__file__).parent
+PROJECT_ROOT = TOOLS_DIR.parent
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +137,7 @@ class TestScaffoldClean(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.root = SCAFFOLD_ROOT
+        cls.root = PROJECT_ROOT
         cls.contracts = load_all_contracts(cls.root)
         cls.conv = load_conventions(cls.root)
         cls.graph = load_graph(cls.root)
@@ -594,41 +595,82 @@ class TestCLI(unittest.TestCase):
     def test_normal_exit_zero(self):
         result = subprocess.run(
             [sys.executable, 'lint_contracts.py'],
-            capture_output=True, cwd=str(SCAFFOLD_ROOT))
+            capture_output=True, cwd=str(TOOLS_DIR))
         self.assertEqual(result.returncode, 0)
 
     def test_strict_exit_nonzero(self):
-        """Strict mode: assumption compatibility warnings become errors."""
-        result = subprocess.run(
-            [sys.executable, 'lint_contracts.py', '--strict'],
-            capture_output=True, cwd=str(SCAFFOLD_ROOT))
-        self.assertEqual(result.returncode, 2)
+        """Strict mode: warnings become errors, exit code 2."""
+        with TempProject() as tp:
+            tp.add_file('CONVENTIONS.yaml',
+                        'conventions_version: 2\nmemory:\n  max_entries: 20\n  max_content_chars: 100\n'
+                        'token_thresholds:\n  contract_max: 500\n  recovery_max: 800')
+            tp.add_file('MANIFEST.yaml',
+                        'project: test\nversion: 1\nupdated: 2026-01-01T00:00:00Z\n'
+                        'modules:\n  a: { status: stable, owner: core }\n  b: { status: stable, owner: core }\n'
+                        'managers:\n  core: { owns: [a, b] }\norchestrator: active')
+            tp.add_file('GRAPH.yaml',
+                        'modules:\n  a:\n    consumes: []\n  b:\n    consumes: []')
+            contract_tpl = (
+                'module: {mod}\nversion: 1\nconventions_version: 2\n'
+                'status: stable\ntype: regular\npurpose: test module {mod}\n'
+                'provides:\n'
+                '- id: do_{mod}\n  input: {{ x: string }}\n  output: {{ y: string }}\n'
+                '  errors: [ERR_1]\n  invariants: ["must validate input"]\n'
+                '- id: get_{mod}\n  input: {{ id: uuid }}\n  output: {{ item: object }}\n'
+                '  errors: [NOT_FOUND]\n  invariants: ["returns null if missing"]\n'
+                '- id: list_{mod}\n  input: {{}}\n  output: {{ items: "[object]" }}\n'
+                '  errors: []\n  invariants: ["sorted by date"]\n'
+                'consumes: []')
+            tests_tpl = (
+                'module: {mod}\ntests:\n'
+                '- interface: do_{mod}\n  case: basic\n  input: {{ x: "hi" }}\n  expect: {{ has_keys: [y] }}\n'
+                '- interface: get_{mod}\n  case: found\n  input: {{ id: "uuid-1" }}\n  expect: {{ has_keys: [item] }}\n'
+                '- interface: list_{mod}\n  case: empty\n  input: {{}}\n  expect: {{ has_keys: [items] }}')
+            for mod in ['a', 'b']:
+                tp.add_module(mod, contract_tpl.format(mod=mod))
+                tp.add_file(f'modules/{mod}/STATE.yaml',
+                    f'module: {mod}\nstatus: green\nupdated: 2026-01-01T00:00:00Z\ncurrent_work: done\nblockers: []')
+                tp.add_file(f'modules/{mod}/MEMORY.yaml', f'module: {mod}\nentries: []')
+                tp.add_file(f'modules/{mod}/TESTS.yaml', tests_tpl.format(mod=mod))
+                tp.add_file(f'modules/{mod}/CHANGELOG.yaml', f'module: {mod}\nchanges: []')
+            # Overlapping assumption categories → warning (the only non-clean signal)
+            tp.add_file('modules/a/ASSUMPTIONS.yaml',
+                        'module: a\nassumptions:\n  - id: A1\n    category: data\n    content: "uses PostgreSQL"')
+            tp.add_file('modules/b/ASSUMPTIONS.yaml',
+                        'module: b\nassumptions:\n  - id: B1\n    category: data\n    content: "uses MySQL"')
+            result = subprocess.run(
+                [sys.executable, str(TOOLS_DIR / 'lint_contracts.py'), '--strict',
+                 str(tp.root)],
+                capture_output=True)
+            self.assertEqual(result.returncode, 2,
+                             f"Expected exit 2 in strict mode, got {result.returncode}\n"
+                             f"stdout: {result.stdout.decode()[-500:]}")
 
     def test_module_filter(self):
         # Dynamically find the first available module instead of hardcoding
-        modules_dir = SCAFFOLD_ROOT / 'modules'
+        modules_dir = PROJECT_ROOT / 'modules'
         module_dirs = [d.name for d in modules_dir.iterdir()
                        if d.is_dir() and (d / 'CONTRACT.yaml').exists()]
         self.assertTrue(module_dirs, "No modules found in scaffold")
         first_module = sorted(module_dirs)[0]
         result = subprocess.run(
             [sys.executable, 'lint_contracts.py', '--module', first_module],
-            capture_output=True, cwd=str(SCAFFOLD_ROOT))
+            capture_output=True, cwd=str(TOOLS_DIR))
         self.assertEqual(result.returncode, 0)
 
     def test_deterministic(self):
         r1 = subprocess.run(
             [sys.executable, 'lint_contracts.py'],
-            capture_output=True, cwd=str(SCAFFOLD_ROOT))
+            capture_output=True, cwd=str(TOOLS_DIR))
         r2 = subprocess.run(
             [sys.executable, 'lint_contracts.py'],
-            capture_output=True, cwd=str(SCAFFOLD_ROOT))
+            capture_output=True, cwd=str(TOOLS_DIR))
         self.assertEqual(r1.stdout, r2.stdout)
 
     def test_no_stderr(self):
         result = subprocess.run(
             [sys.executable, 'lint_contracts.py'],
-            capture_output=True, cwd=str(SCAFFOLD_ROOT))
+            capture_output=True, cwd=str(TOOLS_DIR))
         self.assertEqual(result.stderr, b'')
 
 

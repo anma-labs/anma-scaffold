@@ -1,6 +1,0 @@
-module: loader
-entries:
-- type: decision
-  content: Batch inserts with 1000-row chunks for memory efficiency
-- type: warning
-  content: "Replace mode drops and recreates table \u2014 dangerous in production"

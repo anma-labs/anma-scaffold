@@ -1,8 +1,0 @@
-project: api-gateway
-managers:
-  gateway:
-    modules:
-    - request-router
-    - auth-gateway
-    - rate-limiter
-    - gateway-analytics

@@ -1,4 +1,0 @@
-module: payments
-entries:
-- type: decision
-  content: Idempotency key required to prevent double charges

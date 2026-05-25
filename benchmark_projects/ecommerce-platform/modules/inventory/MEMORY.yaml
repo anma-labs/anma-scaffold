@@ -1,8 +1,0 @@
-module: inventory
-entries:
-- type: decision
-  content: Reservation model prevents overselling during checkout
-- type: warning
-  content: Concurrent reserve calls need optimistic locking on stock count
-- type: pattern
-  content: 15-min reservation window matches average checkout time

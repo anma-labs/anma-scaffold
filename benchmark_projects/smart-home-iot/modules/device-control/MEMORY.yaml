@@ -1,6 +1,0 @@
-module: device-control
-entries:
-- type: decision
-  content: "Cached state with stale flag \u2014 better UX than failing on offline devices"
-- type: pattern
-  content: "Batch commands use Promise.allSettled pattern \u2014 one failure doesn't block others"

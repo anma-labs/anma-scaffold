@@ -1,6 +1,0 @@
-module: content-types
-entries:
-- type: decision
-  content: Breaking change detection prevents accidental data loss
-- type: pattern
-  content: "Reference fields link to other content types \u2014 validated at save time"

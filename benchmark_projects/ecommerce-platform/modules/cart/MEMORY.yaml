@@ -1,6 +1,0 @@
-module: cart
-entries:
-- type: decision
-  content: "Cart re-prices on every read \u2014 no stale prices at checkout"
-- type: warning
-  content: "Anonymous carts expire after 7 days \u2014 no cleanup job yet"

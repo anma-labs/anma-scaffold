@@ -1,5 +1,0 @@
-module: content-types
-status: green
-updated: '2026-05-24T00:00:00Z'
-current_work: Schema management complete with migration detection
-blockers: []

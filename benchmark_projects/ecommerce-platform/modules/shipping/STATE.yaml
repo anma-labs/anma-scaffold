@@ -1,5 +1,0 @@
-module: shipping
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: Rate calculation done, label creation pending
-blockers: []

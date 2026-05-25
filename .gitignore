@@ -36,3 +36,5 @@ checks/reports/
 # Archives
 *.zip
 *.tar.gz
+benchmark_projects/
+benchmark_results/

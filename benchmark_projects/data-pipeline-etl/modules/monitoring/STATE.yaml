@@ -1,6 +1,0 @@
-module: monitoring
-status: yellow
-updated: '2026-05-24T00:00:00Z'
-current_work: Not started
-blockers:
-- needs scheduler complete first

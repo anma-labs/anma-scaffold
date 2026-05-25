@@ -1,8 +1,0 @@
-module: product-catalog
-entries:
-- type: decision
-  content: Prices in cents to avoid floating-point rounding errors
-- type: decision
-  content: Faceted search built into list, not separate endpoint
-- type: pattern
-  content: "Variants are first-class \u2014 no product without at least one SKU"

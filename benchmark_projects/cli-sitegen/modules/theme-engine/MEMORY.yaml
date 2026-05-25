@@ -1,6 +1,0 @@
-module: theme-engine
-entries:
-- type: decision
-  content: Jinja2-style template syntax for familiarity
-- type: pattern
-  content: Theme assets copied to output _assets/ dir during build
