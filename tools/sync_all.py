@@ -21,6 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file
+from discover import discover_modules, get_module_domain
 
 TOOLS_DIR = Path(__file__).parent
 REQUIRED_FILES = ['CONTRACT.yaml', 'STATE.yaml', 'MEMORY.yaml',
@@ -69,31 +70,28 @@ def ensure_stub(filepath, module_name):
 
 def sync_all(root):
     root = Path(root).resolve()
-    modules_dir = root / 'modules'
     created = []
     updated = []
     deleted = []
 
-    if not modules_dir.exists():
-        print("No modules/ directory found.")
+    try:
+        module_paths = discover_modules(root)
+    except ValueError as e:
+        print(f"  ✗ {e}")
         return
 
-    # Find all modules with a CONTRACT.yaml
-    module_names = sorted(
-        d.name for d in modules_dir.iterdir()
-        if d.is_dir() and (d / 'CONTRACT.yaml').exists()
-    )
-
-    if not module_names:
+    if not module_paths:
         print("No modules with CONTRACT.yaml found.")
         return
+
+    module_names = sorted(module_paths.keys())
 
     print(f"Found {len(module_names)} module(s): {', '.join(module_names)}")
     print()
 
     # Step 1: Ensure all 6 required files exist
     for mod_name in module_names:
-        mod_dir = modules_dir / mod_name
+        mod_dir = module_paths[mod_name]
         for req_file in REQUIRED_FILES:
             filepath = mod_dir / req_file
             if not filepath.exists():
@@ -107,14 +105,14 @@ def sync_all(root):
 
     # Step 2: Regenerate TESTS.yaml for each module (skip if no interfaces)
     for mod_name in module_names:
-        contract = parse_yaml_file(
-            str(modules_dir / mod_name / 'CONTRACT.yaml')) or {}
+        mod_dir = module_paths[mod_name]
+        contract = parse_yaml_file(str(mod_dir / 'CONTRACT.yaml')) or {}
         provides = contract.get('provides', [])
         if not provides or not isinstance(provides, list):
             print(f"  Skipped {mod_name}/TESTS.yaml (no interfaces yet)")
             continue
 
-        tests_path = modules_dir / mod_name / 'TESTS.yaml'
+        tests_path = mod_dir / 'TESTS.yaml'
         result = subprocess.run(
             [sys.executable, str(TOOLS_DIR / 'gen_tests.py'), mod_name,
              '--output', str(tests_path), '--path', str(root)],
@@ -152,8 +150,8 @@ def sync_all(root):
         # Build modules dict from existing contracts
         modules_dict = {}
         for mod_name in module_names:
-            contract = parse_yaml_file(
-                str(modules_dir / mod_name / 'CONTRACT.yaml')) or {}
+            mod_dir = module_paths[mod_name]
+            contract = parse_yaml_file(str(mod_dir / 'CONTRACT.yaml')) or {}
             status = contract.get('status', 'draft')
             # Find owner from existing managers
             owner = None
@@ -171,6 +169,9 @@ def sync_all(root):
             entry = {'status': status}
             if owner:
                 entry['owner'] = owner
+            domain = get_module_domain(root, mod_dir)
+            if domain:
+                entry['domain'] = domain
             modules_dict[mod_name] = entry
 
         # Write manifest preserving structure
@@ -186,6 +187,8 @@ def sync_all(root):
             parts = [f"status: {entry['status']}"]
             if 'owner' in entry:
                 parts.append(f"owner: {entry['owner']}")
+            if 'domain' in entry:
+                parts.append(f"domain: {entry['domain']}")
             lines.append(f"  {mod_name}: {{ {', '.join(parts)} }}")
 
         lines.append("")

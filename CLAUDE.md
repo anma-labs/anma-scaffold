@@ -133,6 +133,47 @@ Agents read these files first, in order, on every task:
 
 Agents don't skip steps. Agents don't read source before contracts.
 
+## Domain scaling (projects with 8+ modules)
+
+For larger projects, modules can be grouped into domains:
+
+    domains/<domain>/<module>/CONTRACT.yaml ...
+
+Each domain has a `GATEWAY.yaml` that declares which interfaces are visible
+to other domains. Within a domain, modules consume each other freely; cross-
+domain `consumes` must reference an exported interface.
+
+Flat modules (`modules/`) and domain modules (`domains/`) can coexist. Module
+names must be globally unique across both layouts. Detection is automatic —
+if `domains/` exists, the tooling scans it; `modules/` is always scanned.
+
+Scaffold a domain module with `--domain`:
+
+```
+python3 tools/new_module.py user-auth --manager backend-manager --domain backend
+python3 tools/import_contracts.py user-auth-CONTRACT.yaml --domain backend
+```
+
+`GATEWAY.yaml` shape:
+
+```yaml
+domain: backend
+version: 1
+exports:
+  - module: user-auth
+    interfaces: [verify_token, get_user]
+```
+
+Context loading order for domain projects adds one step:
+
+1. `CONVENTIONS.yaml`
+2. `MANIFEST.yaml` (includes optional `domain` field per module)
+3. `GRAPH.yaml`
+4. `domains/<domain>/GATEWAY.yaml` (if the module is in a domain)
+5. `CONTRACT.yaml`
+6. `STATE.yaml`
+7. `MEMORY.yaml`
+
 ## The rules you enforce
 
 - Module names: `kebab-case`. Interfaces: `snake_case`. Errors: `SCREAMING_SNAKE_CASE`.

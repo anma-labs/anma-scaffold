@@ -27,6 +27,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file, load_all_contracts
+from discover import discover_modules
+
+
+def _module_dir(root, module):
+    try:
+        module_paths = discover_modules(root)
+    except ValueError:
+        module_paths = {}
+    return module_paths.get(module, root / 'modules' / module)
 
 
 def find_project_root(start='.'):
@@ -41,7 +50,7 @@ def find_project_root(start='.'):
 
 def snapshot(root, module):
     """Save current CONTRACT.yaml for later diffing."""
-    src = root / 'modules' / module / 'CONTRACT.yaml'
+    src = _module_dir(root, module) / 'CONTRACT.yaml'
     if not src.exists():
         print(f"ERROR: {src} not found", file=sys.stderr)
         sys.exit(1)
@@ -277,7 +286,7 @@ def write_deltas(root, module, summary, deltas, dry_run=False):
         print(f"  Created BUS/deltas/{fname}")
 
     # Update CHANGELOG
-    changelog_path = root / 'modules' / module / 'CHANGELOG.yaml'
+    changelog_path = _module_dir(root, module) / 'CHANGELOG.yaml'
     if changelog_path.exists():
         content = changelog_path.read_text()
         if 'changes: []' in content:
@@ -340,7 +349,7 @@ def main():
         return
 
     # Load current contract
-    current_path = root / 'modules' / args.module / 'CONTRACT.yaml'
+    current_path = _module_dir(root, args.module) / 'CONTRACT.yaml'
     if not current_path.exists():
         print(f"ERROR: {current_path} not found", file=sys.stderr)
         sys.exit(1)

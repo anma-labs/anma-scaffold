@@ -16,12 +16,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file
+from discover import discover_modules
 
 
 def generate_mermaid(root):
     """Generate a Mermaid flowchart from GRAPH.yaml and CONTRACT metadata."""
     graph = parse_yaml_file(str(root / 'GRAPH.yaml')) or {}
     manifest = parse_yaml_file(str(root / 'MANIFEST.yaml')) or {}
+    try:
+        module_paths = discover_modules(root)
+    except ValueError:
+        module_paths = {}
 
     graph_modules = graph.get('modules', {})
     if not isinstance(graph_modules, dict):
@@ -44,7 +49,7 @@ def generate_mermaid(root):
             status = str(mod_info.get('status', 'unknown'))
 
         # Get type from contract
-        contract_file = root / 'modules' / mod_name / 'CONTRACT.yaml'
+        contract_file = module_paths.get(mod_name, root / 'modules' / mod_name) / 'CONTRACT.yaml'
         mod_type = 'regular'
         purpose = ''
         if contract_file.exists():

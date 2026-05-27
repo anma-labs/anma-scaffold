@@ -23,6 +23,9 @@ import time
 import yaml
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from discover import discover_modules
+
 
 # ── Token manipulation ───────────────────────────────────────────────────
 
@@ -255,10 +258,11 @@ def select_test_modules(projects_dir, count=6):
     for pd in sorted(projects_dir.iterdir()):
         if not pd.is_dir() or pd.name.startswith("."):
             continue
-        md = pd / "modules"
-        if not md.exists():
+        try:
+            module_paths = discover_modules(pd)
+        except ValueError:
             continue
-        for mod_dir in sorted(md.iterdir()):
+        for mod_name, mod_dir in sorted(module_paths.items()):
             cp = mod_dir / "CONTRACT.yaml"
             if not cp.exists():
                 continue
@@ -266,7 +270,7 @@ def select_test_modules(projects_dir, count=6):
             tokens = count_tokens(text)
             iface_count = text.count("\n- id:")
             candidates.append({
-                "project": pd.name, "module": mod_dir.name,
+                "project": pd.name, "module": mod_name,
                 "path": str(mod_dir), "contract_tokens": tokens,
                 "interface_count": iface_count,
             })

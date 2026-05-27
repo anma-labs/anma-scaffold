@@ -21,11 +21,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file, load_all_contracts
+from discover import discover_modules
 
 
 def build_matrix(root):
     """Build the full compatibility matrix from project files."""
     contracts = load_all_contracts(root)
+    try:
+        module_paths = discover_modules(root)
+    except ValueError:
+        module_paths = {}
     manifest = parse_yaml_file(str(root / 'MANIFEST.yaml')) or {}
     manifest_modules = manifest.get('modules', {})
     if not isinstance(manifest_modules, dict):
@@ -77,7 +82,7 @@ def build_matrix(root):
     # Build assumption overlaps
     assumptions_by_cat = {}
     for mod_name in contracts:
-        af = root / 'modules' / mod_name / 'ASSUMPTIONS.yaml'
+        af = module_paths.get(mod_name, root / 'modules' / mod_name) / 'ASSUMPTIONS.yaml'
         if not af.exists():
             continue
         data = parse_yaml_file(str(af))

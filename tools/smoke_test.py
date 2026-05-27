@@ -20,7 +20,19 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from discover import discover_modules
+
 SCAFFOLD_ROOT = Path(__file__).parent
+
+
+def _module_files_present(proj, module, required):
+    try:
+        module_paths = discover_modules(proj)
+    except ValueError:
+        module_paths = {}
+    mod_dir = module_paths.get(module, proj / 'modules' / module)
+    return all((mod_dir / f).exists() for f in required), mod_dir
 VERBOSE = '-v' in sys.argv or '--verbose' in sys.argv
 
 
@@ -143,10 +155,16 @@ def main():
         check("scaffold auth-handler (depends on user-service)", r and r.returncode == 0)
 
         # Verify files created
+        required_module_files = ['CONTRACT.yaml', 'STATE.yaml', 'MEMORY.yaml',
+                                 'CHANGELOG.yaml', 'TESTS.yaml', 'ASSUMPTIONS.yaml']
         for mod in ['database-core', 'user-service', 'auth-handler']:
-            for f in ['CONTRACT.yaml', 'STATE.yaml', 'MEMORY.yaml',
-                      'CHANGELOG.yaml', 'TESTS.yaml', 'ASSUMPTIONS.yaml']:
-                check(f"{mod}/{f} exists", (proj / 'modules' / mod / f).exists())
+            try:
+                module_paths = discover_modules(proj)
+            except ValueError:
+                module_paths = {}
+            mod_dir = module_paths.get(mod, proj / 'modules' / mod)
+            for f in required_module_files:
+                check(f"{mod}/{f} exists", (mod_dir / f).exists())
 
         # --- Phase 3: Verify GRAPH consistency ---
         print("\n── Phase 3: Graph consistency ──")
@@ -194,8 +212,12 @@ def main():
 
         r = run([py, 'gen_claude_md.py', '--module', 'user-service'], proj)
         check("module CLAUDE.md generated", r and r.returncode == 0)
-        check("module CLAUDE.md exists",
-              (proj / 'modules' / 'user-service' / 'CLAUDE.md').exists())
+        try:
+            mod_paths = discover_modules(proj)
+        except ValueError:
+            mod_paths = {}
+        us_dir = mod_paths.get('user-service', proj / 'modules' / 'user-service')
+        check("module CLAUDE.md exists", (us_dir / 'CLAUDE.md').exists())
 
         # --- Phase 7: Compatibility matrix ---
         print("\n── Phase 7: Compatibility matrix ──")
@@ -236,7 +258,7 @@ def main():
         print("\n── Phase 10: Plugin system ──")
 
         (proj / 'checks' / 'check_smoke.py').write_text(
-            "def run(root, contracts, all_contracts, conventions, manifest, result):\n"
+            "def run(root, contracts, all_contracts, conventions, manifest, result, **kwargs):\n"
             "    result.warning('smoke', 'plugin executed')\n")
         # Linter may exit 1 due to TBD errors, but plugin should still load
         r = run([py, 'lint_contracts.py'], proj, expect_exit=1)
@@ -330,8 +352,12 @@ def main():
 
         # auth-handler is not consumed by anyone
         r = run([py, 'remove_module.py', 'auth-handler', '--confirm'], proj)
+        try:
+            after_paths = discover_modules(proj)
+        except ValueError:
+            after_paths = {}
         check("remove unconsumed module",
-              r and r.returncode == 0 and not (proj / 'modules' / 'auth-handler').exists())
+              r and r.returncode == 0 and 'auth-handler' not in after_paths)
 
         # --- Phase 17: Final consistency ---
         print("\n── Phase 17: Final consistency ──")

@@ -6,6 +6,7 @@ import argparse, shutil, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import load_all_contracts
+from discover import discover_modules
 
 def find_project_root(start='.'):
     p = Path(start).resolve()
@@ -45,9 +46,13 @@ def main():
     args = parser.parse_args()
     name = args.name
     root = find_project_root()
-    mod_dir = root / 'modules' / name
-    if not mod_dir.exists():
-        print(f"  ERROR: Module '{name}' not found at {mod_dir}"); sys.exit(1)
+    try:
+        module_paths = discover_modules(root)
+    except ValueError as e:
+        print(f"  ERROR: {e}"); sys.exit(1)
+    mod_dir = module_paths.get(name)
+    if mod_dir is None or not mod_dir.exists():
+        print(f"  ERROR: Module '{name}' not found in modules/ or domains/"); sys.exit(1)
     if not args.confirm:
         print(f"  ERROR: Pass --confirm to actually remove '{name}'"); sys.exit(1)
 
@@ -93,7 +98,11 @@ def main():
         messages.append(f"  Removed {bus_removed} BUS file(s)")
 
     shutil.rmtree(mod_dir)
-    messages.append(f"  Deleted modules/{name}/")
+    try:
+        rel = mod_dir.relative_to(root)
+        messages.append(f"  Deleted {rel}/")
+    except ValueError:
+        messages.append(f"  Deleted {mod_dir}/")
 
     # Log activity
     try:

@@ -20,7 +20,7 @@ project-root/
 ├── GRAPH.yaml             # Dependency graph (auto-generated)
 ├── CLAUDE.md              # AI agent instructions
 │
-├── modules/
+├── modules/                  # Flat layout (always supported)
 │   └── <module-name>/
 │       ├── CONTRACT.yaml  # Interface specification (the source of truth)
 │       ├── STATE.yaml     # Current status, task, blockers
@@ -32,12 +32,22 @@ project-root/
 │           ├── requests/  # Incoming change requests from other modules
 │           └── deltas/    # Outgoing contract change notifications
 │
+├── domains/                  # Domain layout (optional, for 8+ modules)
+│   └── <domain-name>/
+│       ├── GATEWAY.yaml      # Interfaces exported to other domains
+│       └── <module-name>/    # Same 6-file shape as flat modules
+│           ├── CONTRACT.yaml
+│           └── ...
+│
 ├── BUS/                   # Project-wide inter-module communication
 │   ├── requests/
 │   └── deltas/
 │
-└── tools/                 # Linting, scaffolding, analysis (26 scripts)
+└── tools/                 # Linting, scaffolding, analysis (27 scripts)
 ```
+
+Flat (`modules/`) and domain (`domains/<domain>/`) layouts may coexist; the
+tooling discovers both automatically. See **Domain Scaling** below.
 
 ## Context Loading Order
 
@@ -149,6 +159,49 @@ provides:
 ```
 
 **Rule of thumb:** `consumes` for synchronous calls. BUS invariants for async fan-out.
+
+## Domain Scaling
+
+For projects with 8+ modules, group modules into domains under `domains/<domain>/`. A domain is a directory that contains its own modules plus an optional `GATEWAY.yaml` declaring which interfaces are exported.
+
+```
+domains/
+├── backend/
+│   ├── GATEWAY.yaml          # Exported interfaces visible to other domains
+│   ├── user-auth/
+│   └── payments/
+└── frontend/
+    └── web-ui/
+```
+
+`GATEWAY.yaml` shape:
+
+```yaml
+domain: backend
+version: 1
+exports:
+  - module: user-auth
+    interfaces: [verify_token, get_user]
+  - module: payments
+    interfaces: [process_payment]
+```
+
+**Rules enforced by the linter (Check 24):**
+
+- Module names must be globally unique across all domains and flat modules.
+- Cross-domain `consumes` must reference an interface listed in the provider's `GATEWAY.yaml`.
+- Flat modules consuming a domain module must also use exported interfaces.
+- Within a domain, modules consume each other freely (no gateway needed).
+- Flat-to-flat consumption has no gateway restrictions.
+
+Flat and domain layouts coexist freely — keep infrastructure modules flat and group regular modules by domain if it helps. MANIFEST entries gain an optional `domain:` field, populated automatically by `sync_all.py`. The GRAPH stays flat; domain membership is derived from MANIFEST.
+
+Scaffolding:
+
+```
+python3 tools/new_module.py user-auth --manager backend-manager --domain backend
+python3 tools/import_contracts.py user-auth-CONTRACT.yaml --domain backend
+```
 
 ## Multi-Agent Workflows
 

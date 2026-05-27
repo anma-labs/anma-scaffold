@@ -58,6 +58,19 @@ class TempProject:
         (d / 'CONTRACT.yaml').write_text(contract_text)
         return d
 
+    def add_domain_module(self, domain, name, contract_text):
+        d = self.root / 'domains' / domain / name
+        d.mkdir(parents=True, exist_ok=True)
+        (d / 'CONTRACT.yaml').write_text(contract_text)
+        return d
+
+    def add_gateway(self, domain, gateway_text):
+        d = self.root / 'domains' / domain
+        d.mkdir(parents=True, exist_ok=True)
+        p = d / 'GATEWAY.yaml'
+        p.write_text(gateway_text)
+        return p
+
     def add_file(self, relpath, content):
         p = self.root / relpath
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -836,6 +849,244 @@ class TestSessionLog(unittest.TestCase):
         content = (self.root / 'SESSION-HISTORY.yaml').read_text()
         self.assertIn('action one', content)
         self.assertIn('action two', content)
+
+
+# ---------------------------------------------------------------------------
+# Domain Scaling Tests
+# ---------------------------------------------------------------------------
+
+_VALID_CONTRACT = """module: {name}
+version: 1
+status: draft
+type: regular
+purpose: "{name} module"
+provides:
+  - id: do_thing
+    input: {{ k: string }}
+    output: {{ v: string }}
+    errors: [NOT_FOUND]
+    invariants: ["returns NOT_FOUND for missing keys"]
+consumes: {consumes}
+contract_rules:
+  adding_interface: allowed
+  modifying_interface: notify
+  removing_interface: breaking
+"""
+
+
+def _flat_contract(name, consumes_yaml='[]'):
+    return _VALID_CONTRACT.format(name=name, consumes=consumes_yaml)
+
+
+def _consume_block(deps):
+    """deps = list of (module, interface) tuples."""
+    if not deps:
+        return '[]'
+    lines = ['']
+    for mod, iface in deps:
+        lines.append(f"  - module: {mod}")
+        lines.append(f"    interface: {iface}")
+        lines.append(f"    required: true")
+    return '\n'.join(lines)
+
+
+class TestDiscoverModules(unittest.TestCase):
+    """Unit tests for tools/discover.py."""
+
+    def test_flat_only(self):
+        from discover import discover_modules
+        with TempProject() as tp:
+            tp.add_module('mod-a', _flat_contract('mod-a'))
+            tp.add_module('mod-b', _flat_contract('mod-b'))
+            found = discover_modules(tp.root)
+            self.assertEqual(set(found.keys()), {'mod-a', 'mod-b'})
+            self.assertTrue(str(found['mod-a']).endswith('modules/mod-a'))
+
+    def test_domain_only(self):
+        from discover import discover_modules
+        with TempProject() as tp:
+            tp.add_domain_module('backend', 'user-auth', _flat_contract('user-auth'))
+            found = discover_modules(tp.root)
+            self.assertIn('user-auth', found)
+            self.assertIn('domains/backend/user-auth', str(found['user-auth']))
+
+    def test_mixed_layout(self):
+        from discover import discover_modules
+        with TempProject() as tp:
+            tp.add_module('shared', _flat_contract('shared'))
+            tp.add_domain_module('backend', 'api', _flat_contract('api'))
+            found = discover_modules(tp.root)
+            self.assertEqual(set(found.keys()), {'shared', 'api'})
+
+    def test_duplicate_raises(self):
+        from discover import discover_modules
+        with TempProject() as tp:
+            tp.add_module('dupe', _flat_contract('dupe'))
+            tp.add_domain_module('backend', 'dupe', _flat_contract('dupe'))
+            with self.assertRaises(ValueError):
+                discover_modules(tp.root)
+
+    def test_empty_project(self):
+        from discover import discover_modules
+        with TempProject() as tp:
+            self.assertEqual(discover_modules(tp.root), {})
+
+    def test_get_module_domain_flat(self):
+        from discover import get_module_domain
+        with TempProject() as tp:
+            d = tp.add_module('mod-a', _flat_contract('mod-a'))
+            self.assertIsNone(get_module_domain(tp.root, d))
+
+    def test_get_module_domain_domain(self):
+        from discover import get_module_domain
+        with TempProject() as tp:
+            d = tp.add_domain_module('backend', 'api', _flat_contract('api'))
+            self.assertEqual(get_module_domain(tp.root, d), 'backend')
+
+    def test_discover_domains(self):
+        from discover import discover_domains
+        with TempProject() as tp:
+            tp.add_domain_module('backend', 'api', _flat_contract('api'))
+            tp.add_gateway('backend',
+                'domain: backend\nversion: 1\nexports:\n'
+                '  - module: api\n    interfaces: [do_thing]\n')
+            tp.add_domain_module('frontend', 'ui', _flat_contract('ui'))
+            domains = discover_domains(tp.root)
+            self.assertEqual(set(domains.keys()), {'backend', 'frontend'})
+            self.assertEqual(domains['backend']['modules'], ['api'])
+            self.assertIsNotNone(domains['backend']['gateway'])
+            self.assertIsNone(domains['frontend']['gateway'])
+
+    def test_discover_domains_empty(self):
+        from discover import discover_domains
+        with TempProject() as tp:
+            self.assertEqual(discover_domains(tp.root), {})
+
+
+def _run_gateway(root, contracts):
+    from lint_contracts import check_gateway
+    from discover import discover_modules
+    result = LintResult()
+    paths = discover_modules(root)
+    check_gateway(root, contracts, contracts, paths, result)
+    return result
+
+
+class TestDomainScaling(unittest.TestCase):
+    """Integration tests for domain scaling end-to-end."""
+
+    def test_flat_layout_still_works(self):
+        with TempProject() as tp:
+            tp.add_module('mod-a', _flat_contract('mod-a'))
+            contracts = load_all_contracts(tp.root)
+            self.assertIn('mod-a', contracts)
+
+    def test_domain_layout_discovered(self):
+        with TempProject() as tp:
+            tp.add_domain_module('backend', 'user-auth',
+                                 _flat_contract('user-auth'))
+            contracts = load_all_contracts(tp.root)
+            self.assertIn('user-auth', contracts)
+
+    def test_mixed_layout(self):
+        with TempProject() as tp:
+            tp.add_module('shared', _flat_contract('shared'))
+            tp.add_domain_module('backend', 'api', _flat_contract('api'))
+            contracts = load_all_contracts(tp.root)
+            self.assertEqual(set(contracts.keys()), {'shared', 'api'})
+
+    def test_duplicate_module_name_rejected(self):
+        from discover import discover_modules
+        with TempProject() as tp:
+            tp.add_module('dupe', _flat_contract('dupe'))
+            tp.add_domain_module('backend', 'dupe', _flat_contract('dupe'))
+            with self.assertRaises(ValueError):
+                discover_modules(tp.root)
+
+    def test_gateway_exports_unexported_interface_caught(self):
+        with TempProject() as tp:
+            tp.add_domain_module('backend', 'api',
+                                 _flat_contract('api'))
+            # Gateway exports only 'do_thing' which exists
+            tp.add_gateway('backend',
+                'domain: backend\nversion: 1\nexports:\n'
+                '  - module: api\n    interfaces: [do_thing]\n')
+            # frontend consumes api.secret which is NOT exported
+            tp.add_domain_module('frontend', 'ui', _flat_contract(
+                'ui', _consume_block([('api', 'secret')])))
+            contracts = load_all_contracts(tp.root)
+            result = _run_gateway(tp.root, contracts)
+            errs = [e for e in result.errors if 'secret' in str(e)]
+            self.assertTrue(errs, f"Expected gateway error, got: {result.errors}")
+
+    def test_within_domain_no_gateway_needed(self):
+        with TempProject() as tp:
+            tp.add_domain_module('backend', 'a',
+                                 _flat_contract('a'))
+            tp.add_domain_module('backend', 'b', _flat_contract(
+                'b', _consume_block([('a', 'do_thing')])))
+            # No GATEWAY.yaml — intra-domain consumption should be fine
+            contracts = load_all_contracts(tp.root)
+            result = _run_gateway(tp.root, contracts)
+            self.assertFalse(result.errors,
+                             f"Intra-domain should not error: {result.errors}")
+
+    def test_flat_modules_no_gateway_needed(self):
+        with TempProject() as tp:
+            tp.add_module('a', _flat_contract('a'))
+            tp.add_module('b', _flat_contract(
+                'b', _consume_block([('a', 'do_thing')])))
+            contracts = load_all_contracts(tp.root)
+            result = _run_gateway(tp.root, contracts)
+            self.assertFalse(result.errors,
+                             f"Flat→flat should not error: {result.errors}")
+
+    def test_cross_domain_no_gateway_at_all_errors(self):
+        with TempProject() as tp:
+            tp.add_domain_module('backend', 'api', _flat_contract('api'))
+            # No GATEWAY.yaml in backend
+            tp.add_domain_module('frontend', 'ui', _flat_contract(
+                'ui', _consume_block([('api', 'do_thing')])))
+            contracts = load_all_contracts(tp.root)
+            result = _run_gateway(tp.root, contracts)
+            errs = [e for e in result.errors if 'GATEWAY' in str(e)]
+            self.assertTrue(errs, f"Expected missing-gateway error: {result.errors}")
+
+    def test_flat_to_domain_uses_gateway(self):
+        with TempProject() as tp:
+            tp.add_domain_module('backend', 'api', _flat_contract('api'))
+            tp.add_gateway('backend',
+                'domain: backend\nversion: 1\nexports:\n'
+                '  - module: api\n    interfaces: [do_thing]\n')
+            tp.add_module('flat-consumer', _flat_contract(
+                'flat-consumer', _consume_block([('api', 'do_thing')])))
+            contracts = load_all_contracts(tp.root)
+            result = _run_gateway(tp.root, contracts)
+            self.assertFalse(result.errors,
+                             f"Flat→domain (exported) should pass: {result.errors}")
+
+    def test_gateway_exports_nonexistent_interface(self):
+        with TempProject() as tp:
+            tp.add_domain_module('backend', 'api', _flat_contract('api'))
+            tp.add_gateway('backend',
+                'domain: backend\nversion: 1\nexports:\n'
+                '  - module: api\n    interfaces: [does_not_exist]\n')
+            contracts = load_all_contracts(tp.root)
+            result = _run_gateway(tp.root, contracts)
+            errs = [e for e in result.errors if 'does_not_exist' in str(e)]
+            self.assertTrue(errs,
+                            f"Expected nonexistent-interface error: {result.errors}")
+
+    def test_gateway_exports_nonexistent_module(self):
+        with TempProject() as tp:
+            tp.add_domain_module('backend', 'api', _flat_contract('api'))
+            tp.add_gateway('backend',
+                'domain: backend\nversion: 1\nexports:\n'
+                '  - module: ghost\n    interfaces: [whatever]\n')
+            contracts = load_all_contracts(tp.root)
+            result = _run_gateway(tp.root, contracts)
+            errs = [e for e in result.errors if 'ghost' in str(e)]
+            self.assertTrue(errs, f"Expected missing-module error: {result.errors}")
 
 
 if __name__ == '__main__':

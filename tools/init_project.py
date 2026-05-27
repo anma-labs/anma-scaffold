@@ -16,19 +16,39 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file
+from discover import discover_modules
 
 
 def init_project(root):
     root = Path(root)
-    modules_dir = root / 'modules'
+
+    # Report what we're about to remove (uses discovery across both layouts)
+    try:
+        discovered = discover_modules(root)
+    except ValueError:
+        discovered = {}
     removed = []
 
-    # Delete all module directories
+    # Delete all flat module directories
+    modules_dir = root / 'modules'
     if modules_dir.exists():
         for entry in sorted(modules_dir.iterdir()):
             if entry.is_dir():
                 shutil.rmtree(entry)
                 removed.append(entry.name)
+
+    # Delete all domain module directories (and GATEWAY.yaml files)
+    domains_dir = root / 'domains'
+    if domains_dir.exists():
+        for domain_dir in sorted(domains_dir.iterdir()):
+            if not domain_dir.is_dir() or domain_dir.name.startswith('.'):
+                continue
+            for entry in sorted(domain_dir.iterdir()):
+                if entry.is_dir():
+                    shutil.rmtree(entry)
+                    removed.append(f"{domain_dir.name}/{entry.name}")
+                elif entry.name == 'GATEWAY.yaml':
+                    entry.unlink()
 
     if removed:
         print(f"Removed {len(removed)} module(s): {', '.join(removed)}")

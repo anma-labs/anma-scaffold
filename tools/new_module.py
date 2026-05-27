@@ -22,6 +22,7 @@ from pathlib import Path
 # Import the YAML parser from lint_contracts
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file
+from discover import discover_modules
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +148,7 @@ def write_assumptions(path, name):
 # MANIFEST and GRAPH updaters
 # ---------------------------------------------------------------------------
 
-def update_manifest(root, name, manager):
+def update_manifest(root, name, manager, domain=None):
     """Append new module to MANIFEST.yaml using yaml_editor."""
     from yaml_editor import manifest_add_module, scope_add_module
 
@@ -156,7 +157,7 @@ def update_manifest(root, name, manager):
         print(f"  WARNING: {manifest_path} not found, skipping")
         return
 
-    ok, err = manifest_add_module(root, name, manager=manager)
+    ok, err = manifest_add_module(root, name, manager=manager, domain=domain)
     if not ok:
         print(f"  {err}")
         return
@@ -206,6 +207,8 @@ def main():
                         help='One-line purpose description')
     parser.add_argument('--path', type=str, default='.',
                         help='Project root path (default: current directory)')
+    parser.add_argument('--domain', type=str, default=None,
+                        help='Place module under domains/<domain>/ (default: modules/)')
     parser.add_argument('--lint', action='store_true',
                         help='Run linter after scaffolding')
     args = parser.parse_args()
@@ -219,23 +222,38 @@ def main():
         print(f"ERROR: '{name}' is not valid kebab-case")
         sys.exit(1)
 
+    # Discover existing modules across flat and domain layouts
+    try:
+        existing_paths = discover_modules(root)
+    except ValueError as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
+
     # Check module doesn't already exist
-    mod_dir = root / 'modules' / name
+    if name in existing_paths:
+        print(f"ERROR: Module '{name}' already exists at {existing_paths[name]}")
+        sys.exit(1)
+    if args.domain:
+        mod_dir = root / 'domains' / args.domain / name
+        rel_label = f"domains/{args.domain}/{name}"
+    else:
+        mod_dir = root / 'modules' / name
+        rel_label = f"modules/{name}"
     if mod_dir.exists():
         print(f"ERROR: Module directory already exists: {mod_dir}")
         sys.exit(1)
 
     # Validate consumed modules exist
     for dep in consumes:
-        dep_dir = root / 'modules' / dep
-        if not dep_dir.exists():
-            print(f"ERROR: Consumed module '{dep}' does not exist at {dep_dir}")
+        if dep not in existing_paths:
+            print(f"ERROR: Consumed module '{dep}' does not exist in modules/ or domains/")
             sys.exit(1)
 
     print(f"\nANMA New Module Scaffolding")
     print(f"  Module:   {name}")
     print(f"  Type:     {args.type}")
     print(f"  Manager:  {args.manager or '(none)'}")
+    print(f"  Domain:   {args.domain or '(none)'}")
     print(f"  Consumes: {consumes or '(none)'}")
     print()
 
@@ -254,10 +272,10 @@ def main():
     write_tests(mod_dir / 'TESTS.yaml', name)
     write_assumptions(mod_dir / 'ASSUMPTIONS.yaml', name)
 
-    print(f"  Created modules/{name}/ with 8 files")
+    print(f"  Created {rel_label}/ with 8 files")
 
     # Update MANIFEST and GRAPH
-    update_manifest(root, name, args.manager)
+    update_manifest(root, name, args.manager, args.domain)
     update_graph(root, name, consumes)
 
     print(f"\n  Done. Run 'python3 lint_contracts.py' to verify.")

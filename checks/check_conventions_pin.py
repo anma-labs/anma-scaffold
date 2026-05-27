@@ -3,7 +3,7 @@ Check that every CONTRACT.yaml pins conventions_version matching CONVENTIONS.yam
 Drop into checks/check_conventions_pin.py. The linter auto-discovers it.
 """
 
-def run(root, contracts, all_contracts, conventions, manifest, result):
+def run(root, contracts, all_contracts, conventions, manifest, result, **kwargs):
     expected = conventions.get('conventions_version') if conventions else None
     if expected is None:
         result.warning('conventions_pin', 'CONVENTIONS.yaml missing conventions_version')

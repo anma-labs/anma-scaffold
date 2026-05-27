@@ -14,7 +14,11 @@ Usage:
 import argparse
 import json
 import statistics
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from discover import discover_modules
 
 
 def count_tokens(filepath: Path) -> int:
@@ -56,14 +60,15 @@ def measure_module(module_dir: Path) -> dict:
 
 def measure_project(project_dir: Path) -> dict:
     """Measure all modules in a project."""
-    modules_dir = project_dir / "modules"
-    if not modules_dir.exists():
-        return {"project": project_dir.name, "modules": [], "error": "no modules directory"}
+    try:
+        module_paths = discover_modules(project_dir)
+    except ValueError as e:
+        return {"project": project_dir.name, "modules": [], "error": str(e)}
 
-    modules = []
-    for mod_dir in sorted(modules_dir.iterdir()):
-        if mod_dir.is_dir() and (mod_dir / "CONTRACT.yaml").exists():
-            modules.append(measure_module(mod_dir))
+    if not module_paths:
+        return {"project": project_dir.name, "modules": [], "error": "no modules found"}
+
+    modules = [measure_module(mod_dir) for _, mod_dir in sorted(module_paths.items())]
 
     return {
         "project": project_dir.name,

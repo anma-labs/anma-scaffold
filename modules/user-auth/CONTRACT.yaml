@@ -1,6 +1,6 @@
 module: user-auth
 version: 1
-conventions_version: 2
+conventions_version: 3
 status: draft
 type: regular
 

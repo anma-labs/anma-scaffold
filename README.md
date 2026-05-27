@@ -103,7 +103,7 @@ Use **Claude + ANMA** when your project has multiple modules that depend on each
 | **Integration bugs** | Often found at runtime | Caught earlier by linted contracts |
 | **Token usage at scale** | Thousands of tokens per module | Hundreds of tokens per module |
 
-ANMA is best for projects with roughly **5–80 modules** and **1–4 developers** — large enough to need architectural memory, but small enough to avoid heavyweight platform governance.
+ANMA is best for projects with roughly **5–80 modules** and **1–4 developers** — large enough to need architectural memory, but small enough to avoid heavyweight platform governance. Past **8 modules**, group them into domains under `domains/<domain>/` so cross-domain coupling stays explicit (each domain declares its public interfaces in a `GATEWAY.yaml`).
 
 ---
 
@@ -217,7 +217,7 @@ your-project/
   GRAPH.yaml            # Auto-generated dependency graph
   CLAUDE.md             # Agent instructions auto-read by Claude Code
 
-  modules/
+  modules/              # Flat layout (always supported)
     user-auth/
       CONTRACT.yaml     # What this module provides and consumes
       STATE.yaml        # Current work status and blockers
@@ -226,9 +226,17 @@ your-project/
       TESTS.yaml        # Contract-derived test cases
       ASSUMPTIONS.yaml  # Implementation details outside the contract
 
+  domains/              # Optional domain layout for 8+ modules
+    backend/
+      GATEWAY.yaml      # Interfaces exported to other domains
+      user-auth/        # Same 6-file shape as flat modules
+      payments/
+
   BUS/                  # Async inter-module communication
   tools/                # Scripts for linting, scaffolding, and analysis
 ```
+
+For larger projects, group modules into domains under `domains/<domain>/`. Each domain has a `GATEWAY.yaml` declaring which interfaces are visible to other domains. Within a domain, modules consume each other freely; cross-domain `consumes` must reference an exported interface. Flat and domain layouts may coexist — see `docs/ARCHITECTURE.md` for details.
 
 Contracts define **what the code must do**. Assumptions describe **how the current implementation does it**. That separation lets you replace implementation details without breaking dependent modules.
 

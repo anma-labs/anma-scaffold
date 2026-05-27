@@ -19,6 +19,8 @@ import importlib.util
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+from discover import discover_modules, discover_domains, get_module_domain
+
 # ---------------------------------------------------------------------------
 # YAML parsing — uses PyYAML when available, falls back to built-in parser.
 # The built-in handles the flat/nested YAML used in ANMA contracts.
@@ -473,24 +475,26 @@ def load_all_contracts(root):
     """Load all module CONTRACT.yaml files. Returns {module_name: contract_dict}.
     Includes empty/malformed contracts so structure checks can report them."""
     contracts = {}
-    modules_dir = root / 'modules'
-    if not modules_dir.exists():
+    try:
+        module_paths = discover_modules(root)
+    except ValueError:
+        # Duplicate module names — main() will re-call discover_modules and
+        # surface the error there. Return empty so the "no contracts" check
+        # in main() doesn't mask it.
         return contracts
-    for mod_dir in sorted(modules_dir.iterdir()):
-        if mod_dir.is_dir():
-            contract_file = mod_dir / 'CONTRACT.yaml'
-            if contract_file.exists():
-                data = parse_yaml_file(str(contract_file))
-                if data is None:
-                    # File vanished between exists() and open(), treat as empty
-                    data = {}
-                if '_parse_error' in data:
-                    # Parser returned an error — still include with empty dict
-                    # so structure checks will report missing fields
-                    print(f"  ⚠ WARNING: {contract_file} could not be parsed: "
-                          f"{data['_parse_error']}")
-                    data = {}
-                contracts[mod_dir.name] = data
+    for mod_name, mod_dir in module_paths.items():
+        contract_file = mod_dir / 'CONTRACT.yaml'
+        data = parse_yaml_file(str(contract_file))
+        if data is None:
+            # File vanished between discovery and open(), treat as empty
+            data = {}
+        if '_parse_error' in data:
+            # Parser returned an error — still include with empty dict
+            # so structure checks will report missing fields
+            print(f"  ⚠ WARNING: {contract_file} could not be parsed: "
+                  f"{data['_parse_error']}")
+            data = {}
+        contracts[mod_name] = data
     return contracts
 
 
@@ -902,15 +906,19 @@ def check_manifest_consistency(contracts, manifest, result):
 # Check 7: STATE.yaml existence and health
 # ---------------------------------------------------------------------------
 
-def check_state_files(root, contracts, result):
+def check_state_files(root, contracts, result, module_paths=None):
     """Verify each module has a STATE.yaml with required fields."""
     print("── Check 7: STATE.yaml existence ──")
+
+    if module_paths is None:
+        module_paths = discover_modules(root)
 
     required_state_fields = ['module', 'status']
     valid_statuses = ['green', 'yellow', 'red', 'blocked']
 
     for mod_name in contracts:
-        state_file = root / 'modules' / mod_name / 'STATE.yaml'
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
+        state_file = mod_dir / 'STATE.yaml'
         if not state_file.exists():
             result.warning(mod_name, "Missing STATE.yaml")
             continue
@@ -934,9 +942,12 @@ def check_state_files(root, contracts, result):
 # Check 8: MEMORY.yaml caps and health
 # ---------------------------------------------------------------------------
 
-def check_memory_files(root, contracts, conventions, result):
+def check_memory_files(root, contracts, conventions, result, module_paths=None):
     """Verify each module's MEMORY.yaml stays within budget."""
     print("── Check 8: MEMORY.yaml caps ──")
+
+    if module_paths is None:
+        module_paths = discover_modules(root)
 
     # Load limits from conventions, with defaults
     mem_conventions = {}
@@ -951,7 +962,8 @@ def check_memory_files(root, contracts, conventions, result):
         ['decision', 'discovery', 'warning', 'pattern'])
 
     for mod_name in contracts:
-        mem_file = root / 'modules' / mod_name / 'MEMORY.yaml'
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
+        mem_file = mod_dir / 'MEMORY.yaml'
         if not mem_file.exists():
             result.warning(mod_name, "Missing MEMORY.yaml")
             continue
@@ -1075,12 +1087,16 @@ def check_granularity(contracts, conventions, result):
 # Check 10: TESTS.yaml coverage and validity
 # ---------------------------------------------------------------------------
 
-def check_test_files(root, contracts, result):
+def check_test_files(root, contracts, result, module_paths=None):
     """Verify each module has TESTS.yaml with coverage for all interfaces."""
     print("── Check 10: TESTS.yaml coverage ──")
 
+    if module_paths is None:
+        module_paths = discover_modules(root)
+
     for mod_name, contract in contracts.items():
-        test_file = root / 'modules' / mod_name / 'TESTS.yaml'
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
+        test_file = mod_dir / 'TESTS.yaml'
         if not test_file.exists():
             result.warning(mod_name, "Missing TESTS.yaml")
             continue
@@ -1175,9 +1191,12 @@ def _content_size(filepath):
     return sum(len(l) + 1 for l in lines)  # +1 for newline
 
 
-def check_context_budget(root, contracts, conventions, result):
+def check_context_budget(root, contracts, conventions, result, module_paths=None):
     """Verify each module's cold-start context stays within token budget."""
     print("── Check 11: Context budget ──")
+
+    if module_paths is None:
+        module_paths = discover_modules(root)
 
     # Load limits from conventions
     budget = {}
@@ -1191,11 +1210,7 @@ def check_context_budget(root, contracts, conventions, result):
 
     # Scale thresholds for large projects: shared context (MANIFEST, GRAPH)
     # grows ~50 tokens per module, so fixed thresholds penalize large projects.
-    modules_dir = root / 'modules'
-    total_module_count = 0
-    if modules_dir.is_dir():
-        total_module_count = sum(1 for d in modules_dir.iterdir()
-                                 if d.is_dir() and (d / 'CONTRACT.yaml').exists())
+    total_module_count = len(module_paths)
     per_module_bonus = 50
     if total_module_count > 4:  # only scale above baseline (original scaffold has 2)
         extra = (total_module_count - 4) * per_module_bonus
@@ -1217,9 +1232,10 @@ def check_context_budget(root, contracts, conventions, result):
     for mod_name in contracts:
         module_chars = 0
         file_breakdown = {}
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
 
         for mod_file in ['CONTRACT.yaml', 'STATE.yaml', 'MEMORY.yaml']:
-            filepath = root / 'modules' / mod_name / mod_file
+            filepath = mod_dir / mod_file
             if filepath.exists():
                 try:
                     size = _content_size(filepath)
@@ -1320,12 +1336,16 @@ def check_module_types(contracts, conventions, result):
 # Check 14: ASSUMPTIONS.yaml structure
 # ---------------------------------------------------------------------------
 
-def check_assumptions(root, contracts, result):
+def check_assumptions(root, contracts, result, module_paths=None):
     """Verify each module's ASSUMPTIONS.yaml is well-structured."""
     print("── Check 14: Assumptions ──")
 
+    if module_paths is None:
+        module_paths = discover_modules(root)
+
     for mod_name in contracts:
-        assumptions_file = root / 'modules' / mod_name / 'ASSUMPTIONS.yaml'
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
+        assumptions_file = mod_dir / 'ASSUMPTIONS.yaml'
         if not assumptions_file.exists():
             result.warning(mod_name, "Missing ASSUMPTIONS.yaml")
             continue
@@ -1390,12 +1410,16 @@ def check_assumptions(root, contracts, result):
 # Check 15: CHANGELOG.yaml structure
 # ---------------------------------------------------------------------------
 
-def check_changelog(root, contracts, result):
+def check_changelog(root, contracts, result, module_paths=None):
     """Verify each module has a well-structured CHANGELOG.yaml."""
     print("── Check 15: Changelog ──")
 
+    if module_paths is None:
+        module_paths = discover_modules(root)
+
     for mod_name in contracts:
-        cl_file = root / 'modules' / mod_name / 'CHANGELOG.yaml'
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
+        cl_file = mod_dir / 'CHANGELOG.yaml'
         if not cl_file.exists():
             result.warning(mod_name, "Missing CHANGELOG.yaml")
             continue
@@ -1427,9 +1451,12 @@ def check_changelog(root, contracts, result):
 # Check 16: Replacement readiness (all module files present)
 # ---------------------------------------------------------------------------
 
-def check_replacement_ready(root, contracts, result):
+def check_replacement_ready(root, contracts, result, module_paths=None):
     """Verify each module has all files needed for a fresh agent to take over."""
     print("── Check 16: Replacement readiness ──")
+
+    if module_paths is None:
+        module_paths = discover_modules(root)
 
     required_files = [
         'CONTRACT.yaml', 'STATE.yaml', 'MEMORY.yaml',
@@ -1438,9 +1465,10 @@ def check_replacement_ready(root, contracts, result):
 
     for mod_name, contract in contracts.items():
         status = contract.get('status', '')
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
         missing = []
         for filename in required_files:
-            filepath = root / 'modules' / mod_name / filename
+            filepath = mod_dir / filename
             if not filepath.exists():
                 missing.append(filename)
 
@@ -1578,14 +1606,18 @@ def check_bus(root, all_contracts, result):
 # Check 18: Cross-module assumption compatibility
 # ---------------------------------------------------------------------------
 
-def check_assumption_compatibility(root, all_contracts, result):
+def check_assumption_compatibility(root, all_contracts, result, module_paths=None):
     """Flag assumptions in the same category across different modules for review."""
     print("── Check 18: Assumption compatibility ──")
+
+    if module_paths is None:
+        module_paths = discover_modules(root)
 
     # Collect all assumptions by category: {category: [(module, id, content), ...]}
     by_category = {}
     for mod_name in all_contracts:
-        assumptions_file = root / 'modules' / mod_name / 'ASSUMPTIONS.yaml'
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
+        assumptions_file = mod_dir / 'ASSUMPTIONS.yaml'
         if not assumptions_file.exists():
             continue
 
@@ -1981,12 +2013,15 @@ _TYPE_MAP = {
 }
 
 
-def check_schemas(root, contracts, result):
+def check_schemas(root, contracts, result, module_paths=None):
     """Validate module files against known schemas — catch misspelled keys and wrong types."""
     print("── Check 23: Schema validation ──")
 
+    if module_paths is None:
+        module_paths = discover_modules(root)
+
     for mod_name in sorted(contracts):
-        mod_dir = root / 'modules' / mod_name
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
         for filename, schema in _SCHEMAS.items():
             filepath = mod_dir / f'{filename}.yaml'
             if not filepath.exists():
@@ -2021,6 +2056,83 @@ def check_schemas(root, contracts, result):
                         f" {expected_type}, got {type(val).__name__}")
 
 
+def check_gateway(root, contracts, all_contracts, module_paths, result):
+    """Check 24: Gateway validation for domain scaling."""
+    print("── Check 24: Gateway validation ──")
+
+    domains = discover_domains(root)
+    if not domains:
+        return  # No domains, nothing to check
+
+    # Build domain lookup: {module_name: domain_name}
+    domain_lookup = {}
+    for dname, info in domains.items():
+        for mod in info['modules']:
+            domain_lookup[mod] = dname
+
+    # Build exports lookup: {domain: {module: set(interfaces)}}
+    exports = {}
+    for dname, info in domains.items():
+        if info['gateway'] is None:
+            continue
+        gw = parse_yaml_file(str(info['gateway']))
+        if not gw or not isinstance(gw, dict):
+            result.error(f"domain/{dname}", "GATEWAY.yaml is empty or malformed")
+            continue
+        exports[dname] = {}
+        for entry in gw.get('exports', []) or []:
+            if isinstance(entry, dict):
+                mod = entry.get('module', '')
+                ifaces = entry.get('interfaces', [])
+                exports[dname][mod] = set(ifaces) if isinstance(ifaces, list) else set()
+
+    # Validate cross-domain consumes (only for FILTERED contracts)
+    for mod_name, contract in contracts.items():
+        mod_domain = domain_lookup.get(mod_name)  # None if flat
+        for dep in contract.get('consumes', []) or []:
+            if not isinstance(dep, dict):
+                continue
+            dep_module = dep.get('module', '')
+            dep_interface = dep.get('interface', '')
+            dep_domain = domain_lookup.get(dep_module)
+
+            # Skip if provider is flat (no gateway to enforce)
+            if dep_domain is None:
+                continue
+            # Skip if same domain (intra-domain, no gateway needed)
+            if mod_domain == dep_domain:
+                continue
+
+            # Cross-domain OR flat→domain: check gateway
+            if dep_domain not in exports:
+                result.error(mod_name,
+                    f"consumes {dep_module}.{dep_interface} from domain "
+                    f"'{dep_domain}' but '{dep_domain}' has no GATEWAY.yaml")
+            elif dep_module not in exports[dep_domain]:
+                result.error(mod_name,
+                    f"consumes {dep_module}.{dep_interface} but "
+                    f"'{dep_module}' is not exported in {dep_domain}/GATEWAY.yaml")
+            elif dep_interface not in exports[dep_domain].get(dep_module, set()):
+                result.error(mod_name,
+                    f"consumes {dep_module}.{dep_interface} but "
+                    f"'{dep_interface}' is not exported in {dep_domain}/GATEWAY.yaml")
+
+    # Validate gateway references
+    for dname, dexports in exports.items():
+        for mod, ifaces in dexports.items():
+            if mod not in all_contracts:
+                result.error(f"domain/{dname}",
+                    f"GATEWAY.yaml exports '{mod}' but module doesn't exist")
+            else:
+                provides = {p['id'] for p in all_contracts[mod].get('provides', [])
+                           if isinstance(p, dict) and 'id' in p}
+                for iface in ifaces:
+                    if iface not in provides:
+                        result.error(f"domain/{dname}",
+                            f"GATEWAY.yaml exports {mod}.{iface} "
+                            f"but interface doesn't exist in contract")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -2048,7 +2160,13 @@ def main():
     manifest = load_manifest(root)
 
     if not contracts:
-        print("  ✗ No contracts found in modules/ directory.\n")
+        print("  ✗ No contracts found in modules/ or domains/ directory.\n")
+        sys.exit(1)
+
+    try:
+        module_paths = discover_modules(root)
+    except ValueError as e:
+        print(f"  ✗ {e}")
         sys.exit(1)
 
     # all_contracts is the full set (needed for cross-reference lookups).
@@ -2079,23 +2197,24 @@ def main():
     check_circular_dependencies(all_contracts, result)
     check_contract_structure(contracts, result)
     check_manifest_consistency(all_contracts, manifest, result)
-    check_state_files(root, contracts, result)
-    check_memory_files(root, contracts, conventions, result)
+    check_state_files(root, contracts, result, module_paths=module_paths)
+    check_memory_files(root, contracts, conventions, result, module_paths=module_paths)
     check_granularity(contracts, conventions, result)
-    check_test_files(root, contracts, result)
-    check_context_budget(root, contracts, conventions, result)
+    check_test_files(root, contracts, result, module_paths=module_paths)
+    check_context_budget(root, contracts, conventions, result, module_paths=module_paths)
     check_conventions_version(conventions, result)
     check_module_types(contracts, conventions, result)
-    check_assumptions(root, contracts, result)
-    check_changelog(root, contracts, result)
-    check_replacement_ready(root, contracts, result)
+    check_assumptions(root, contracts, result, module_paths=module_paths)
+    check_changelog(root, contracts, result, module_paths=module_paths)
+    check_replacement_ready(root, contracts, result, module_paths=module_paths)
     check_bus(root, all_contracts, result)
-    check_assumption_compatibility(root, all_contracts, result)
+    check_assumption_compatibility(root, all_contracts, result, module_paths=module_paths)
     check_managers_orchestrator(root, all_contracts, manifest, result)
     check_delta_accuracy(root, all_contracts, result)
     check_version_pinning(contracts, all_contracts, result)
     check_stale_requests(root, result)
-    check_schemas(root, contracts, result)
+    check_schemas(root, contracts, result, module_paths=module_paths)
+    check_gateway(root, contracts, all_contracts, module_paths, result)
 
     # --- Plugin checks from checks/ directory ---
     checks_dir = root / 'checks'
@@ -2112,7 +2231,7 @@ def main():
                     mod.run(root=root, contracts=contracts,
                             all_contracts=all_contracts,
                             conventions=conventions, manifest=manifest,
-                            result=result)
+                            result=result, module_paths=module_paths)
                 else:
                     result.warning('plugin',
                         f"{plugin_name}.py missing 'run' function")

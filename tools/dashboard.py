@@ -20,11 +20,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file, load_all_contracts, load_conventions
+from discover import discover_modules
 
 
 def build_dashboard(root):
     """Collect all health metrics."""
     contracts = load_all_contracts(root)
+    try:
+        module_paths = discover_modules(root)
+    except ValueError:
+        module_paths = {}
     conv = load_conventions(root)
     manifest = parse_yaml_file(str(root / 'MANIFEST.yaml')) or {}
     graph = parse_yaml_file(str(root / 'GRAPH.yaml')) or {}
@@ -40,7 +45,8 @@ def build_dashboard(root):
     # --- Module health ---
     modules = []
     for mod_name, contract in sorted(contracts.items()):
-        state_file = root / 'modules' / mod_name / 'STATE.yaml'
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
+        state_file = mod_dir / 'STATE.yaml'
         state = parse_yaml_file(str(state_file)) if state_file.exists() else {}
         if not isinstance(state, dict):
             state = {}
@@ -60,9 +66,9 @@ def build_dashboard(root):
             if (root / f).exists()
         )
         mod_size = sum(
-            _yaml_content_size(root / 'modules' / mod_name / f)
+            _yaml_content_size(mod_dir / f)
             for f in ['CONTRACT.yaml', 'STATE.yaml', 'MEMORY.yaml']
-            if (root / 'modules' / mod_name / f).exists()
+            if (mod_dir / f).exists()
         )
         budget_tokens = (shared_size + mod_size) // 4
 
@@ -72,7 +78,7 @@ def build_dashboard(root):
         warn_tokens = budget_conf.get('warn_tokens', 2000)
 
         # Memory usage
-        mem_file = root / 'modules' / mod_name / 'MEMORY.yaml'
+        mem_file = mod_dir / 'MEMORY.yaml'
         mem_entries = 0
         if mem_file.exists():
             mem = parse_yaml_file(str(mem_file))
@@ -89,7 +95,7 @@ def build_dashboard(root):
                     iface_names.add(p['id'])
 
         # Test coverage
-        test_file = root / 'modules' / mod_name / 'TESTS.yaml'
+        test_file = mod_dir / 'TESTS.yaml'
         test_count = 0
         tested_ifaces = set()
         if test_file.exists():
@@ -183,7 +189,7 @@ def build_dashboard(root):
     # --- Assumption overlaps ---
     by_cat = {}
     for mod_name in contracts:
-        af = root / 'modules' / mod_name / 'ASSUMPTIONS.yaml'
+        af = module_paths.get(mod_name, root / 'modules' / mod_name) / 'ASSUMPTIONS.yaml'
         if not af.exists():
             continue
         data = parse_yaml_file(str(af))
@@ -201,7 +207,7 @@ def build_dashboard(root):
     total_interfaces = sum(m['interfaces'] for m in modules)
     total_tests = 0
     for mod_name in contracts:
-        tf = root / 'modules' / mod_name / 'TESTS.yaml'
+        tf = module_paths.get(mod_name, root / 'modules' / mod_name) / 'TESTS.yaml'
         if tf.exists():
             td = parse_yaml_file(str(tf))
             if td and isinstance(td.get('tests'), list):

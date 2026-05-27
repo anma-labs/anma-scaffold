@@ -21,6 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file
+from discover import discover_modules
 
 TOOLS_DIR = Path(__file__).parent
 
@@ -45,7 +46,7 @@ def extract_module_name(filepath):
     return None
 
 
-def import_contract(filepath, root, force=False):
+def import_contract(filepath, root, force=False, existing_paths=None, domain=None):
     """Import a single contract file into the project."""
     filepath = Path(filepath)
     if not filepath.exists():
@@ -58,7 +59,18 @@ def import_contract(filepath, root, force=False):
         print(f"    Name files as <module-name>-CONTRACT.yaml")
         return False
 
-    module_dir = root / "modules" / module_name
+    if existing_paths is None:
+        try:
+            existing_paths = discover_modules(root)
+        except ValueError:
+            existing_paths = {}
+
+    if module_name in existing_paths:
+        module_dir = existing_paths[module_name]
+    elif domain:
+        module_dir = root / "domains" / domain / module_name
+    else:
+        module_dir = root / "modules" / module_name
     target = module_dir / "CONTRACT.yaml"
 
     if target.exists() and not force:
@@ -82,6 +94,8 @@ def main():
                         help="Overwrite existing module contracts")
     parser.add_argument("--skip-lint", action="store_true",
                         help="Skip linter after import")
+    parser.add_argument("--domain", default=None,
+                        help="Place new modules under domains/<domain>/ (default: modules/)")
     args = parser.parse_args()
 
     root = Path(args.path).resolve()
@@ -94,13 +108,15 @@ def main():
 
     # Check if examples are still present
     example_modules = {"user-auth", "todo-api", "notifications"}
-    modules_dir = root / "modules"
-    if modules_dir.exists():
-        existing = {d.name for d in modules_dir.iterdir() if d.is_dir()}
-        if existing & example_modules:
-            print("Warning: example modules still present.")
-            print("  Run 'python3 tools/init_project.py' first to clear them.")
-            print()
+    try:
+        existing_paths = discover_modules(root)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    if set(existing_paths) & example_modules:
+        print("Warning: example modules still present.")
+        print("  Run 'python3 tools/init_project.py' first to clear them.")
+        print()
 
     # Import contracts
     print("Importing contracts:\n")
@@ -108,7 +124,7 @@ def main():
     failed = 0
     for contract_path in args.contracts:
         path = Path(contract_path)
-        if import_contract(path, root, args.force):
+        if import_contract(path, root, args.force, existing_paths, args.domain):
             imported += 1
         else:
             failed += 1

@@ -17,6 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file
+from discover import discover_modules
 
 
 def generate_project_claude_md(root):
@@ -143,7 +144,12 @@ def generate_module_claude_md(root, module_name):
     conv = parse_yaml_file(str(root / 'CONVENTIONS.yaml')) or {}
     manifest = parse_yaml_file(str(root / 'MANIFEST.yaml')) or {}
     graph = parse_yaml_file(str(root / 'GRAPH.yaml')) or {}
-    contract = parse_yaml_file(str(root / 'modules' / module_name / 'CONTRACT.yaml')) or {}
+    try:
+        module_paths = discover_modules(root)
+    except ValueError:
+        module_paths = {}
+    mod_dir = module_paths.get(module_name, root / 'modules' / module_name)
+    contract = parse_yaml_file(str(mod_dir / 'CONTRACT.yaml')) or {}
 
     # Get dependencies from graph
     graph_modules = graph.get('modules', {})
@@ -254,9 +260,14 @@ def main():
     root = Path(args.path).resolve()
 
     if args.module:
-        mod_dir = root / 'modules' / args.module
-        if not mod_dir.exists():
-            print(f"ERROR: Module '{args.module}' not found at {mod_dir}")
+        try:
+            module_paths = discover_modules(root)
+        except ValueError as e:
+            print(f"ERROR: {e}")
+            sys.exit(1)
+        mod_dir = module_paths.get(args.module)
+        if mod_dir is None:
+            print(f"ERROR: Module '{args.module}' not found in modules/ or domains/")
             sys.exit(1)
 
         content = generate_module_claude_md(root, args.module)

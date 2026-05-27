@@ -22,12 +22,19 @@ from urllib.error import URLError, HTTPError
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file
+from discover import discover_modules
 
 
 def load_module_tests(root, module_name):
     """Load TESTS.yaml and CONTRACT for a module."""
-    tests_file = root / 'modules' / module_name / 'TESTS.yaml'
-    contract_file = root / 'modules' / module_name / 'CONTRACT.yaml'
+    try:
+        module_paths = discover_modules(root)
+    except ValueError as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
+    mod_dir = module_paths.get(module_name, root / 'modules' / module_name)
+    tests_file = mod_dir / 'TESTS.yaml'
+    contract_file = mod_dir / 'CONTRACT.yaml'
 
     if not tests_file.exists():
         print(f"ERROR: TESTS.yaml not found for '{module_name}'")

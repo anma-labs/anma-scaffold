@@ -1,7 +1,7 @@
 # Injected into every agent's context. Keep SMALL — every token multiplied by module count.
 # POLICY: Append-only. Never modify existing rules — deprecate and add new ones.
 
-conventions_version: 2
+conventions_version: 3
 
 error_format:
   shape: { code: "STRING_CONSTANT", message: "string", details: "object | null" }
@@ -90,6 +90,22 @@ dependency_rules:
     rule: "Direct (consumes) when synchronous/frequent/stable. BUS when one-time/fire-and-forget/cross-cutting."
     example_direct: "matching → user-profiles.get_profile (synchronous, frequent)"
     example_bus: "auth delete_account → all modules cleanup (one-to-many fan-out)"
+
+domain_scaling:
+  layout_modes: [flat, domain, mixed]
+  detection: "automatic — if domains/ exists, scan it; modules/ always scanned"
+  naming:
+    domains: kebab-case
+  rules:
+    - "Module names must be globally unique across all domains and flat modules"
+    - "Cross-domain consumes must reference interfaces listed in target domain's GATEWAY.yaml"
+    - "Flat modules consuming domain modules must also use exported interfaces"
+    - "Within a domain, modules consume each other freely (no gateway needed)"
+    - "Flat-to-flat consumption has no gateway restrictions"
+    - "GATEWAY.yaml is required for any domain that exports interfaces"
+  gateway_spec:
+    required_fields: [domain, version, exports]
+    exports_shape: "list of {module: string, interfaces: [string]}"
 
 principles:
   - id: contracts-over-code

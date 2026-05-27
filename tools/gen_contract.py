@@ -20,6 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file
+from discover import discover_modules
 
 
 # Common interface patterns based on module name/purpose keywords
@@ -212,11 +213,17 @@ def generate_contract(name, purpose, consumes, mod_type, root=None, force_patter
     lines.append("")
     if consumes:
         lines.append("consumes:")
+        module_paths = {}
+        if root:
+            try:
+                module_paths = discover_modules(root)
+            except ValueError:
+                module_paths = {}
         for dep in consumes:
             # Try to look up the provider's interfaces
             iface_name = 'TBD'
             if root:
-                contract_path = root / 'modules' / dep / 'CONTRACT.yaml'
+                contract_path = module_paths.get(dep, root / 'modules' / dep) / 'CONTRACT.yaml'
                 if contract_path.exists():
                     dep_contract = parse_yaml_file(str(contract_path))
                     if dep_contract and isinstance(dep_contract.get('provides'), list):

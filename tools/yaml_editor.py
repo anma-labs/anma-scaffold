@@ -84,7 +84,7 @@ def write_manifest(root, data):
     path.write_text('\n'.join(lines))
 
 
-def manifest_add_module(root, name, status='draft', owner=None, manager=None):
+def manifest_add_module(root, name, status='draft', owner=None, manager=None, domain=None):
     """Add a module to MANIFEST.yaml."""
     data = read_manifest(root)
     modules = data.get('modules', {})
@@ -98,6 +98,8 @@ def manifest_add_module(root, name, status='draft', owner=None, manager=None):
     entry = {'status': status, 'owner': owner}
     if manager:
         entry['manager'] = manager
+    if domain:
+        entry['domain'] = domain
     modules[name] = entry
     data['modules'] = modules
 

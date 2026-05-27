@@ -6,6 +6,9 @@ Creates projects of varying size and domain to measure natural contract
 token distributions. No API calls needed — contracts are generated from
 curated templates covering the realistic spread of what users would write.
 
+TODO: Generate domain-layout archetypes in future so benchmarks cover both
+flat and domain-scaled projects.
+
 Usage:
     python3 tools/benchmark/generate_archetypes.py [--output-dir benchmark_projects]
 """

@@ -3,6 +3,19 @@ ANMA Principle Enforcement — 7 checks mapping to 7 design principles.
 Drop into checks/check_principles.py. The linter auto-discovers it.
 """
 import re
+import sys
+from pathlib import Path
+
+# Make tools/ importable when this plugin is loaded from a checks/ dir
+# that's a sibling of tools/.
+_TOOLS_DIR = Path(__file__).resolve().parent.parent / 'tools'
+if _TOOLS_DIR.is_dir() and str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
+
+try:
+    from discover import discover_modules
+except ImportError:
+    discover_modules = None
 
 # Implementation patterns (case-insensitive) — things that don't belong in contracts
 _IMPL_PATTERNS = [
@@ -34,11 +47,14 @@ def _count_chars(filepath):
         return 0
 
 
-def check_p1_contracts_over_code(root, contracts, result):
+def check_p1_contracts_over_code(root, contracts, result, module_paths=None):
     """P1: Contracts describe behavior, never implementation."""
     print("── Principle 1: Contracts over code ──")
+    if module_paths is None:
+        module_paths = {}
     for mod_name in contracts:
-        contract_path = root / 'modules' / mod_name / 'CONTRACT.yaml'
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
+        contract_path = mod_dir / 'CONTRACT.yaml'
         if not contract_path.exists():
             continue
         try:
@@ -76,14 +92,17 @@ def check_p1_contracts_over_code(root, contracts, result):
                     f"contracts describe WHAT, not HOW")
 
 
-def check_p2_tokens_are_bottleneck(root, contracts, result, conventions=None):
+def check_p2_tokens_are_bottleneck(root, contracts, result, conventions=None, module_paths=None):
     """P2: Single contract within token_thresholds.contract_max."""
     max_tokens = 500  # fallback
     if conventions:
         max_tokens = conventions.get("token_thresholds", {}).get("contract_max", max_tokens)
+    if module_paths is None:
+        module_paths = {}
     print("── Principle 2: Tokens are the bottleneck ──")
     for mod_name in contracts:
-        contract_path = root / 'modules' / mod_name / 'CONTRACT.yaml'
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
+        contract_path = mod_dir / 'CONTRACT.yaml'
         if not contract_path.exists():
             continue
         tokens = _count_chars(contract_path) // 4
@@ -93,14 +112,17 @@ def check_p2_tokens_are_bottleneck(root, contracts, result, conventions=None):
                 f"Consider splitting or compressing invariants")
 
 
-def check_p3_state_is_explicit(root, contracts, result):
+def check_p3_state_is_explicit(root, contracts, result, module_paths=None):
     """P3: Non-draft STATE.yaml must reflect actual work."""
     print("── Principle 3: State is explicit ──")
+    if module_paths is None:
+        module_paths = {}
     for mod_name, contract in contracts.items():
         status = str(contract.get('status', 'draft')).lower()
         if status == 'draft':
             continue
-        state_path = root / 'modules' / mod_name / 'STATE.yaml'
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
+        state_path = mod_dir / 'STATE.yaml'
         if not state_path.exists():
             result.warning(mod_name, f"P3 non-draft module (status: {status}) has no STATE.yaml")
             continue
@@ -187,14 +209,16 @@ def check_p5_hierarchy_is_real(root, contracts, manifest, result):
                 f"P5 owns {len(modules)} modules (max 7): {', '.join(modules)}")
 
 
-def check_p6_recovery_is_cheap(root, contracts, result, conventions=None):
+def check_p6_recovery_is_cheap(root, contracts, result, conventions=None, module_paths=None):
     """P6: Module recovery (CONTRACT+STATE+MEMORY) within token_thresholds.recovery_max."""
     max_tokens = 800  # fallback
     if conventions:
         max_tokens = conventions.get("token_thresholds", {}).get("recovery_max", max_tokens)
+    if module_paths is None:
+        module_paths = {}
     print("── Principle 6: Recovery is cheap ──")
     for mod_name in contracts:
-        module_dir = root / 'modules' / mod_name
+        module_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
         tokens = sum(_count_chars(module_dir / f) // 4
                      for f in ['CONTRACT.yaml', 'STATE.yaml', 'MEMORY.yaml'])
         if tokens > max_tokens:
@@ -202,16 +226,19 @@ def check_p6_recovery_is_cheap(root, contracts, result, conventions=None):
                 f"P6 module recovery is {tokens} tokens (max {max_tokens})")
 
 
-def check_p7_replacement_over_continuity(root, contracts, result):
+def check_p7_replacement_over_continuity(root, contracts, result, module_paths=None):
     """P7: MEMORY.yaml is structured insights, not logs or code."""
     print("── Principle 7: Replacement over continuity ──")
+    if module_paths is None:
+        module_paths = {}
     red_flags = [
         (r'```', 'contains code blocks'),
         (r'\bdef \b|\bfunction \b|\bclass \b', 'contains source code'),
         (r'\b(said|told|asked|replied|discussed)\b', 'reads like a conversation log'),
     ]
     for mod_name in contracts:
-        memory_path = root / 'modules' / mod_name / 'MEMORY.yaml'
+        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
+        memory_path = mod_dir / 'MEMORY.yaml'
         if not memory_path.exists():
             continue
         try:
@@ -224,12 +251,20 @@ def check_p7_replacement_over_continuity(root, contracts, result):
                 break
 
 
-def run(root, contracts, all_contracts, conventions, manifest, result):
+def run(root, contracts, all_contracts, conventions, manifest, result, **kwargs):
     """Plugin entry point."""
-    check_p1_contracts_over_code(root, contracts, result)
-    check_p2_tokens_are_bottleneck(root, contracts, result, conventions)
-    check_p3_state_is_explicit(root, contracts, result)
+    module_paths = kwargs.get('module_paths')
+    if module_paths is None and discover_modules is not None:
+        try:
+            module_paths = discover_modules(root)
+        except ValueError:
+            module_paths = {}
+    if module_paths is None:
+        module_paths = {}
+    check_p1_contracts_over_code(root, contracts, result, module_paths)
+    check_p2_tokens_are_bottleneck(root, contracts, result, conventions, module_paths)
+    check_p3_state_is_explicit(root, contracts, result, module_paths)
     check_p4_communication_is_async(root, contracts, all_contracts, result)
     check_p5_hierarchy_is_real(root, contracts, manifest, result)
-    check_p6_recovery_is_cheap(root, contracts, result, conventions)
-    check_p7_replacement_over_continuity(root, contracts, result)
+    check_p6_recovery_is_cheap(root, contracts, result, conventions, module_paths)
+    check_p7_replacement_over_continuity(root, contracts, result, module_paths)
