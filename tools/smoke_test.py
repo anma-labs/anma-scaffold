@@ -23,7 +23,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from discover import discover_modules
 
-SCAFFOLD_ROOT = Path(__file__).parent
+TOOLS_DIR = Path(__file__).parent
+PROJECT_ROOT = TOOLS_DIR.parent
 
 
 def _module_files_present(proj, module, required):
@@ -63,13 +64,15 @@ def copy_scaffold(dest):
               'yaml_editor.py', 'session_log.py', 'new_manager.py',
               'remove_module.py', 'rename_project.py', 'gen_contract.py',
               'gen_product_spec.py', 'dashboard.py', 'plan_migration.py',
-              'anma.py', 'gen_tests.py', 'impact.py', 'contract_diff.py']:
-        src = SCAFFOLD_ROOT / f
+              'anma.py', 'gen_tests.py', 'impact.py', 'contract_diff.py',
+              'discover.py', 'sync_all.py', 'import_contracts.py',
+              'init_project.py', 'smoke_test.py']:
+        src = TOOLS_DIR / f
         if src.exists():
             shutil.copy2(str(src), str(dest / f))
 
     # Copy CONVENTIONS
-    shutil.copy2(str(SCAFFOLD_ROOT / 'CONVENTIONS.yaml'), str(dest / 'CONVENTIONS.yaml'))
+    shutil.copy2(str(PROJECT_ROOT / 'CONVENTIONS.yaml'), str(dest / 'CONVENTIONS.yaml'))
 
     # Create empty project structure
     (dest / 'BUS' / 'contracts').mkdir(parents=True)
@@ -381,32 +384,34 @@ def main():
 
         # Full scaffold copy (needs existing modules to remove)
         gs = Path(tempfile.mkdtemp(prefix='anma_gs_'))
-        # Copy everything from scaffold root
-        for item in SCAFFOLD_ROOT.iterdir():
-            if item.name.startswith('__') or item.name.endswith('.pyc'):
-                continue
-            if item.is_dir():
-                shutil.copytree(str(item), str(gs / item.name))
-            else:
-                shutil.copy2(str(item), str(gs / item.name))
+        copy_scaffold(gs)
+        shutil.copytree(str(PROJECT_ROOT / 'modules'), str(gs / 'modules'))
+        shutil.copy2(str(PROJECT_ROOT / 'MANIFEST.yaml'), str(gs / 'MANIFEST.yaml'))
+        shutil.copy2(str(PROJECT_ROOT / 'GRAPH.yaml'), str(gs / 'GRAPH.yaml'))
 
         # Step 1: Rename
         r = run([py, 'rename_project.py', 'my-app'], gs)
         check("GS: rename project", r and r.returncode == 0)
 
         # Step 2: Remove example modules + old manager
-        r = run([py, 'remove_module.py', 'auth-service', '--confirm'], gs)
-        check("GS: remove auth-service", r and r.returncode == 0)
-        r = run([py, 'remove_module.py', 'user-store', '--confirm'], gs)
-        check("GS: remove user-store", r and r.returncode == 0)
-        mgr_dir = gs / 'managers' / 'backend-manager'
+        # Must remove in dependency order (leaf nodes first):
+        # notifications consumes nobody (after itself it's free)
+        # todo-api is consumed only by notifications
+        # user-auth is consumed by todo-api
+        r = run([py, 'remove_module.py', 'notifications', '--confirm'], gs)
+        check("GS: remove notifications", r and r.returncode == 0)
+        r = run([py, 'remove_module.py', 'todo-api', '--confirm'], gs)
+        check("GS: remove todo-api", r and r.returncode == 0)
+        r = run([py, 'remove_module.py', 'user-auth', '--confirm'], gs)
+        check("GS: remove user-auth", r and r.returncode == 0)
+        mgr_dir = gs / 'managers' / 'core-manager'
         if mgr_dir.exists():
             shutil.rmtree(mgr_dir)
         # Clean MANIFEST
         mf = gs / 'MANIFEST.yaml'
         mf.write_text('\n'.join(
             l for l in mf.read_text().split('\n')
-            if 'backend-manager' not in l))
+            if 'core-manager' not in l))
 
         # Step 3: Reset orchestrator plan
         (gs / 'orchestrator' / 'PLAN.yaml').write_text(
