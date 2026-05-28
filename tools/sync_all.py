@@ -68,7 +68,7 @@ def ensure_stub(filepath, module_name):
         )
 
 
-def sync_all(root):
+def sync_all(root, regenerate_only=False):
     root = Path(root).resolve()
     created = []
     updated = []
@@ -89,41 +89,42 @@ def sync_all(root):
     print(f"Found {len(module_names)} module(s): {', '.join(module_names)}")
     print()
 
-    # Step 1: Ensure all 6 required files exist
-    for mod_name in module_names:
-        mod_dir = module_paths[mod_name]
-        for req_file in REQUIRED_FILES:
-            filepath = mod_dir / req_file
-            if not filepath.exists():
-                ensure_stub(filepath, mod_name)
-                created.append(f"{mod_name}/{req_file}")
-                print(f"  Created {mod_name}/{req_file}")
-        # Ensure BUS subdirectories
-        for bus_sub in ['requests', 'deltas']:
-            bus_dir = mod_dir / 'BUS' / bus_sub
-            bus_dir.mkdir(parents=True, exist_ok=True)
+    if not regenerate_only:
+        # Step 1: Ensure all 6 required files exist
+        for mod_name in module_names:
+            mod_dir = module_paths[mod_name]
+            for req_file in REQUIRED_FILES:
+                filepath = mod_dir / req_file
+                if not filepath.exists():
+                    ensure_stub(filepath, mod_name)
+                    created.append(f"{mod_name}/{req_file}")
+                    print(f"  Created {mod_name}/{req_file}")
+            # Ensure BUS subdirectories
+            for bus_sub in ['requests', 'deltas']:
+                bus_dir = mod_dir / 'BUS' / bus_sub
+                bus_dir.mkdir(parents=True, exist_ok=True)
 
-    # Step 2: Regenerate TESTS.yaml for each module (skip if no interfaces)
-    for mod_name in module_names:
-        mod_dir = module_paths[mod_name]
-        contract = parse_yaml_file(str(mod_dir / 'CONTRACT.yaml')) or {}
-        provides = contract.get('provides', [])
-        if not provides or not isinstance(provides, list):
-            print(f"  Skipped {mod_name}/TESTS.yaml (no interfaces yet)")
-            continue
+        # Step 2: Regenerate TESTS.yaml for each module (skip if no interfaces)
+        for mod_name in module_names:
+            mod_dir = module_paths[mod_name]
+            contract = parse_yaml_file(str(mod_dir / 'CONTRACT.yaml')) or {}
+            provides = contract.get('provides', [])
+            if not provides or not isinstance(provides, list):
+                print(f"  Skipped {mod_name}/TESTS.yaml (no interfaces yet)")
+                continue
 
-        tests_path = mod_dir / 'TESTS.yaml'
-        result = subprocess.run(
-            [sys.executable, str(TOOLS_DIR / 'gen_tests.py'), mod_name,
-             '--output', str(tests_path), '--path', str(root)],
-            capture_output=True, text=True
-        )
-        if result.returncode == 0:
-            updated.append(f"{mod_name}/TESTS.yaml")
-            print(f"  Regenerated {mod_name}/TESTS.yaml")
-        else:
-            err = result.stderr.strip() or result.stdout.strip()
-            print(f"  WARNING: gen_tests.py failed for {mod_name}: {err}")
+            tests_path = mod_dir / 'TESTS.yaml'
+            result = subprocess.run(
+                [sys.executable, str(TOOLS_DIR / 'gen_tests.py'), mod_name,
+                 '--output', str(tests_path), '--path', str(root)],
+                capture_output=True, text=True
+            )
+            if result.returncode == 0:
+                updated.append(f"{mod_name}/TESTS.yaml")
+                print(f"  Regenerated {mod_name}/TESTS.yaml")
+            else:
+                err = result.stderr.strip() or result.stdout.strip()
+                print(f"  WARNING: gen_tests.py failed for {mod_name}: {err}")
 
     # Step 3: Regenerate GRAPH.yaml
     print()
@@ -214,31 +215,32 @@ def sync_all(root):
         updated.append('MANIFEST.yaml')
         print("  Rebuilt MANIFEST.yaml")
 
-    # Step 5: Clean orphaned BUS files
-    for bus_subdir in ['deltas', 'requests']:
-        bus_dir = root / 'BUS' / bus_subdir
-        if not bus_dir.exists():
-            continue
-        for f in sorted(bus_dir.iterdir()):
-            if not f.name.endswith('.yaml'):
+    if not regenerate_only:
+        # Step 5: Clean orphaned BUS files
+        for bus_subdir in ['deltas', 'requests']:
+            bus_dir = root / 'BUS' / bus_subdir
+            if not bus_dir.exists():
                 continue
-            data = parse_yaml_file(str(f))
-            if not data or not isinstance(data, dict):
-                continue
-            refs = set()
-            for key in ['source', 'from', 'to']:
-                val = data.get(key)
-                if val and isinstance(val, str):
-                    refs.add(val)
-            affected = data.get('impact', {})
-            if isinstance(affected, dict):
-                for consumer in affected.get('consumers_affected', []):
-                    refs.add(str(consumer))
-            orphaned = refs - set(module_names)
-            if orphaned and not refs & set(module_names):
-                f.unlink()
-                deleted.append(f"BUS/{bus_subdir}/{f.name}")
-                print(f"  Deleted orphaned BUS/{bus_subdir}/{f.name}")
+            for f in sorted(bus_dir.iterdir()):
+                if not f.name.endswith('.yaml'):
+                    continue
+                data = parse_yaml_file(str(f))
+                if not data or not isinstance(data, dict):
+                    continue
+                refs = set()
+                for key in ['source', 'from', 'to']:
+                    val = data.get(key)
+                    if val and isinstance(val, str):
+                        refs.add(val)
+                affected = data.get('impact', {})
+                if isinstance(affected, dict):
+                    for consumer in affected.get('consumers_affected', []):
+                        refs.add(str(consumer))
+                orphaned = refs - set(module_names)
+                if orphaned and not refs & set(module_names):
+                    f.unlink()
+                    deleted.append(f"BUS/{bus_subdir}/{f.name}")
+                    print(f"  Deleted orphaned BUS/{bus_subdir}/{f.name}")
 
     # Report
     print()
@@ -246,8 +248,14 @@ def sync_all(root):
           f"{len(deleted)} deleted")
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Sync all ANMA project files')
     parser.add_argument('--path', default='.', help='Project root path')
+    parser.add_argument('--regenerate-only', action='store_true',
+                        help='Only regenerate GRAPH and MANIFEST (skip stubs and TESTS)')
     args = parser.parse_args()
-    sync_all(args.path)
+    sync_all(args.path, regenerate_only=args.regenerate_only)
+
+
+if __name__ == '__main__':
+    main()

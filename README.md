@@ -204,6 +204,21 @@ Continue where we left off.
 
 Claude can recover from `STATE.yaml`, `MEMORY.yaml`, and the existing contracts instead of requiring a manual handoff note.
 
+### Working with Multiple Agents
+
+ANMA supports multiple AI agents working in parallel on the same project.
+Each agent owns specific modules — contracts are in separate directories,
+so there are no file conflicts.
+
+**Setup:**
+1. `git config core.hooksPath .githooks`
+2. Claim modules before starting: `anma claim user-auth payments`
+3. Launch agents with scoped prompts
+4. After all agents finish: merge branches, MANIFEST/GRAPH regenerate automatically
+5. Run `anma lint --strict` to verify
+
+See `anma claims` for current claims.
+
 ---
 
 ## Project Structure

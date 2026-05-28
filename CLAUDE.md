@@ -217,6 +217,22 @@ When providing contracts as downloadable files, always name them
 `<module-name>-CONTRACT.yaml` (e.g. `user-auth-CONTRACT.yaml`,
 `task-mgmt-CONTRACT.yaml`). Never name multiple files `CONTRACT.yaml`.
 
+## Multi-agent coordination
+
+Before modifying any module, check claims:
+    python3 tools/claims.py status
+
+If a module is claimed by another agent/user, do not modify it.
+If you need to work on an unclaimed module, claim it first:
+    python3 tools/claims.py claim <module-name>
+
+When done, release:
+    python3 tools/claims.py release <module-name>
+
+After merging branches from multiple agents:
+    python3 tools/sync_all.py --regenerate-only
+    python3 tools/lint_contracts.py --strict
+
 ## Reference
 
 - Contract statuses: draft, stable, frozen, breaking-change, deprecated

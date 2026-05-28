@@ -1,11 +1,11 @@
 project: my-project
 version: 1
-updated: 2026-05-23T00:00:00Z
+updated: 2026-05-28T01:13:34Z
 
 modules:
-  user-auth:      { status: draft, owner: core-manager }
-  todo-api:       { status: draft, owner: core-manager }
-  notifications:  { status: draft, owner: core-manager }
+  notifications: { status: draft, owner: core-manager }
+  todo-api: { status: draft, owner: core-manager }
+  user-auth: { status: draft, owner: core-manager }
 
 managers:
   core-manager: { owns: [user-auth, todo-api, notifications] }

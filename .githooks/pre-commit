@@ -1,0 +1,21 @@
+#!/bin/bash
+# Verify no claimed modules are being modified by the wrong person
+# Install: git config core.hooksPath .githooks
+
+CLAIMS_FILE=".anma/claims.yaml"
+if [ ! -f "$CLAIMS_FILE" ]; then
+    exit 0
+fi
+
+CURRENT_USER="${USER:-unknown}"
+MODIFIED_MODULES=$(git diff --cached --name-only | grep -oP 'modules/\K[a-z][a-z0-9-]+|domains/[^/]+/\K[a-z][a-z0-9-]+' | sort -u)
+
+for mod in $MODIFIED_MODULES; do
+    CLAIMED_BY=$(grep -A1 "  $mod:" "$CLAIMS_FILE" 2>/dev/null | grep "by:" | sed 's/.*by: //' | sed 's/,.*//')
+    if [ -n "$CLAIMED_BY" ] && [ "$CLAIMED_BY" != "$CURRENT_USER" ]; then
+        echo "⚠ Module '$mod' is claimed by $CLAIMED_BY"
+        echo "  Release it first: anma release $mod"
+        echo "  Or override: git commit --no-verify"
+        exit 1
+    fi
+done

@@ -112,8 +112,12 @@ def init_project(root):
     print("  python3 tools/new_module.py <name>")
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Initialize a clean ANMA project')
     parser.add_argument('--path', default='.', help='Project root path')
     args = parser.parse_args()
     init_project(args.path)
+
+
+if __name__ == '__main__':
+    main()

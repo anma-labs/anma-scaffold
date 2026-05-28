@@ -46,6 +46,7 @@ COMMANDS = {
     'smoke':     ('smoke_test',     'Run smoke tests'),
     'init':      ('init_project',   'Clear examples for a fresh project'),
     'import':    ('import_contracts', 'Import contract files into project'),
+    'sync':      ('sync_all',         'Sync project files (GRAPH, MANIFEST, TESTS)'),
 }
 
 # Subcommands with sub-subcommands
@@ -90,6 +91,9 @@ def print_help():
             else:
                 label = f"{group} {sub}"
                 print(f"  {label:14s} {desc}")
+    print("  claim          Claim modules for exclusive work")
+    print("  release        Release claimed modules")
+    print("  claims         Show current module claims")
     print()
     print("Run 'anma <command> --help' for command-specific options.")
     print("All commands also work standalone: python3 lint_contracts.py\n")
@@ -119,6 +123,12 @@ def main():
 
     command = sys.argv[1]
     rest = sys.argv[2:]
+
+    # Claims — needs special handling to pass the action verb
+    if command in ('claim', 'release', 'claims'):
+        action_map = {'claim': 'claim', 'release': 'release', 'claims': 'status'}
+        run_module('claims', [action_map[command]] + rest)
+        return
 
     # Simple commands
     if command in COMMANDS:

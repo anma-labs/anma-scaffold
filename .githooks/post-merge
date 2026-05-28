@@ -1,0 +1,9 @@
+#!/bin/bash
+# Auto-regenerate derived files after git merge
+# Install: git config core.hooksPath .githooks
+
+echo "ANMA: Regenerating MANIFEST and GRAPH from contracts..."
+python3 tools/sync_all.py --regenerate-only 2>/dev/null || \
+    python3 $(dirname "$0")/../tools/sync_all.py --regenerate-only 2>/dev/null || \
+    echo "  ⚠ sync_all.py not found — run manually"
+echo "ANMA: Done. Run 'python3 tools/lint_contracts.py' to verify."

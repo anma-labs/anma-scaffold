@@ -2,7 +2,7 @@
 """ANMA Remove Module Script. Refuses removal if other modules consume this one.
 Usage: python3 remove_module.py auth-service --confirm [--force]
 """
-import argparse, shutil, sys
+import argparse, os, shutil, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import load_all_contracts
@@ -55,6 +55,19 @@ def main():
         print(f"  ERROR: Module '{name}' not found in modules/ or domains/"); sys.exit(1)
     if not args.confirm:
         print(f"  ERROR: Pass --confirm to actually remove '{name}'"); sys.exit(1)
+
+    # Warn if module is claimed by someone else (don't block — --force overrides)
+    try:
+        from claims import get_claim
+        claim = get_claim(root, name)
+        if claim and claim.get('by') != os.environ.get('USER', 'unknown'):
+            print(f"  ⚠ WARNING: '{name}' is claimed by {claim['by']} "
+                  f"(branch: {claim.get('branch', '?')})")
+            if not args.force:
+                print("  Use --force to override.")
+                sys.exit(1)
+    except ImportError:
+        pass
 
     consumers = check_consumers(root, name)
     if consumers and not args.force:
