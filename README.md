@@ -83,7 +83,7 @@ The result: the agent sees the module’s inputs, outputs, errors, invariants, a
 - **Lower token usage** — agents read compact contracts instead of entire implementation trees.
 - **Less hallucination** — agents do not invent missing interfaces or guess error names.
 - **Safer implementation** — the linter checks contracts before code gets written.
-- **Recoverable AI sessions** — modules carry their own state and short-term memory.
+- **Recoverable AI sessions** — modules carry enough state for Claude to resume later.
 - **Change impact analysis** — see what breaks before modifying a contract.
 
 ---
@@ -103,7 +103,7 @@ Use **Claude + ANMA** when your project has multiple modules that depend on each
 | **Integration bugs** | Often found at runtime | Caught earlier by linted contracts |
 | **Token usage at scale** | Thousands of tokens per module | Hundreds of tokens per module |
 
-ANMA is best for projects with roughly **5–80 modules** and **1–4 developers** — large enough to need architectural memory, but small enough to avoid heavyweight platform governance. Past **8 modules**, group them into domains under `domains/<domain>/` so cross-domain coupling stays explicit (each domain declares its public interfaces in a `GATEWAY.yaml`).
+ANMA is best for projects that have enough moving parts to need architectural memory — roughly **5–80 modules** and **1–4 developers**. For tiny scripts or one-off prototypes, it is probably more structure than you need.
 
 ---
 
@@ -194,7 +194,7 @@ I want to add a waitlist to my event RSVP project. When an event is full,
 guests join a queue and get notified when a spot opens.
 ```
 
-Claude reads the existing contracts, understands the current modules, checks dependencies, updates the relevant contracts, and implements the change without guessing at hidden interfaces.
+Claude reads the existing contracts, understands how the current modules fit together, updates the relevant contracts, and implements the change without guessing at hidden interfaces.
 
 To resume after a break, start Claude Code again and say:
 
@@ -202,22 +202,7 @@ To resume after a break, start Claude Code again and say:
 Continue where we left off.
 ```
 
-Claude can recover from `STATE.yaml`, `MEMORY.yaml`, and the existing contracts instead of requiring a manual handoff note.
-
-### Working with Multiple Agents
-
-ANMA supports multiple AI agents working in parallel on the same project.
-Each agent owns specific modules — contracts are in separate directories,
-so there are no file conflicts.
-
-**Setup:**
-1. `git config core.hooksPath .githooks`
-2. Claim modules before starting: `anma claim user-auth payments`
-3. Launch agents with scoped prompts
-4. After all agents finish: merge branches, MANIFEST/GRAPH regenerate automatically
-5. Run `anma lint --strict` to verify
-
-See `anma claims` for current claims.
+Claude can recover from `STATE.yaml`, `MEMORY.yaml`, and the existing contracts instead of needing you to re-explain the project from scratch.
 
 ---
 
@@ -232,7 +217,7 @@ your-project/
   GRAPH.yaml            # Auto-generated dependency graph
   CLAUDE.md             # Agent instructions auto-read by Claude Code
 
-  modules/              # Flat layout (always supported)
+  modules/
     user-auth/
       CONTRACT.yaml     # What this module provides and consumes
       STATE.yaml        # Current work status and blockers
@@ -241,17 +226,9 @@ your-project/
       TESTS.yaml        # Contract-derived test cases
       ASSUMPTIONS.yaml  # Implementation details outside the contract
 
-  domains/              # Optional domain layout for 8+ modules
-    backend/
-      GATEWAY.yaml      # Interfaces exported to other domains
-      user-auth/        # Same 6-file shape as flat modules
-      payments/
-
   BUS/                  # Async inter-module communication
   tools/                # Scripts for linting, scaffolding, and analysis
 ```
-
-For larger projects, group modules into domains under `domains/<domain>/`. Each domain has a `GATEWAY.yaml` declaring which interfaces are visible to other domains. Within a domain, modules consume each other freely; cross-domain `consumes` must reference an exported interface. Flat and domain layouts may coexist — see `docs/ARCHITECTURE.md` for details.
 
 Contracts define **what the code must do**. Assumptions describe **how the current implementation does it**. That separation lets you replace implementation details without breaking dependent modules.
 
