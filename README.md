@@ -85,6 +85,8 @@ The result: the agent sees the module’s inputs, outputs, errors, invariants, a
 - **Safer implementation** — the linter checks contracts before code gets written.
 - **Recoverable AI sessions** — modules carry enough state for Claude to resume later.
 - **Change impact analysis** — see what breaks before modifying a contract.
+- **Parallel AI work** — different agents can work on different modules because contracts define clear ownership and boundaries.
+- **Automatic scaling structure** — as projects grow, ANMA keeps related modules organized so the architecture stays understandable without extra planning overhead.
 
 ---
 
