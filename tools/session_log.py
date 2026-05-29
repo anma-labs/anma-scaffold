@@ -45,13 +45,14 @@ def log_activity(root, action, script_name):
         )
 
         # Find the activity_log: [] line and replace, or find activity_log: and append
+        lines = content.split('\n')
         if 'activity_log: []' in content:
             content = content.replace(
                 'activity_log: []',
                 f'activity_log:\n{entry}')
+            lines = content.split('\n')
         elif 'activity_log:' in content:
             # Find the last entry (or the header) and append after it
-            lines = content.split('\n')
             insert_idx = None
             in_log = False
             for i, line in enumerate(lines):
@@ -66,10 +67,8 @@ def log_activity(root, action, script_name):
                         break
             if insert_idx is not None:
                 lines.insert(insert_idx + 1, entry)
-                content = '\n'.join(lines)
 
         # Keep only last 50 entries to prevent unbounded growth
-        lines = content.split('\n')
         entry_count = sum(1 for l in lines if l.strip().startswith('- timestamp:'))
         if entry_count > 50:
             # Find and remove oldest entries
@@ -86,8 +85,8 @@ def log_activity(root, action, script_name):
                     continue
                 skip_entry = False
                 new_lines.append(line)
-            content = '\n'.join(new_lines)
+            lines = new_lines
 
-        history_path.write_text(content)
+        history_path.write_text('\n'.join(lines))
     except Exception:
         pass  # Never break the calling script

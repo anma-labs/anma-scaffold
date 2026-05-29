@@ -15,6 +15,7 @@ Zero external dependencies.
 """
 
 import argparse
+import collections
 import json
 import sys
 from pathlib import Path
@@ -26,11 +27,11 @@ from discover import discover_modules
 
 def build_matrix(root):
     """Build the full compatibility matrix from project files."""
-    contracts = load_all_contracts(root)
     try:
         module_paths = discover_modules(root)
     except ValueError:
         module_paths = {}
+    contracts = load_all_contracts(root)
     manifest = parse_yaml_file(str(root / 'MANIFEST.yaml')) or {}
     manifest_modules = manifest.get('modules', {})
     if not isinstance(manifest_modules, dict):
@@ -111,6 +112,10 @@ def build_matrix(root):
                 'entries': entries,
             })
 
+    # Pre-compute edge counts for O(1) lookup per module
+    provider_counts = collections.Counter(e['provider'] for e in edges)
+    consumer_counts = collections.Counter(e['consumer'] for e in edges)
+
     # Module summary
     modules_summary = []
     for mod_name, contract in sorted(contracts.items()):
@@ -118,8 +123,8 @@ def build_matrix(root):
         manifest_status = str(mod_info.get('status', '')) if isinstance(mod_info, dict) else ''
         provides = contract.get('provides', [])
         iface_count = len(provides) if isinstance(provides, list) else 0
-        consumer_count = sum(1 for e in edges if e['provider'] == mod_name)
-        dependency_count = sum(1 for e in edges if e['consumer'] == mod_name)
+        consumer_count = provider_counts.get(mod_name, 0)
+        dependency_count = consumer_counts.get(mod_name, 0)
 
         modules_summary.append({
             'module': mod_name,
@@ -159,6 +164,8 @@ def format_report(matrix):
 
     lines.extend(["", "## Dependency Edges", ""])
 
+    stale = []
+    unpinned = []
     if matrix['edges']:
         for e in matrix['edges']:
             pin_display = f"v{e['pinned_version']}" if e['pinned_version'] else 'UNPINNED'
@@ -168,11 +175,12 @@ def format_report(matrix):
             lines.append(
                 f"  {e['consumer']} → {e['provider']}.{e['interface']} "
                 f"(pin: {pin_display}, provider: {provider_display}) [{status_icon}]")
+            if e['pin_status'] == 'stale':
+                stale.append(e)
+            elif e['pin_status'] == 'missing':
+                unpinned.append(e)
     else:
         lines.append("  (no dependencies)")
-
-    stale = [e for e in matrix['edges'] if e['pin_status'] == 'stale']
-    unpinned = [e for e in matrix['edges'] if e['pin_status'] == 'missing']
 
     if stale or unpinned:
         lines.extend(["", "## Action Required", ""])

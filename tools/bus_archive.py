@@ -44,12 +44,8 @@ def archive_requests(root, dry_run=False):
     if not requests_dir.exists():
         return archived
 
-    for req_file in sorted(requests_dir.iterdir()):
-        if req_file.name.startswith('.') or req_file.is_dir():
-            continue
-        if not req_file.name.endswith('.yaml'):
-            continue
-
+    dir_created = False
+    for req_file in sorted(requests_dir.glob('*.yaml')):
         data = parse_yaml_file(str(req_file))
         if not data or not isinstance(data, dict):
             continue
@@ -57,7 +53,9 @@ def archive_requests(root, dry_run=False):
         status = str(data.get('status', ''))
         if status in ('resolved', 'rejected'):
             if not dry_run:
-                archive_dir.mkdir(parents=True, exist_ok=True)
+                if not dir_created:
+                    archive_dir.mkdir(parents=True, exist_ok=True)
+                    dir_created = True
                 shutil.move(str(req_file), str(archive_dir / req_file.name))
             archived.append((req_file.name, status))
 
@@ -75,12 +73,8 @@ def archive_deltas(root, max_age_days, dry_run=False):
     if not deltas_dir.exists():
         return archived
 
-    for delta_file in sorted(deltas_dir.iterdir()):
-        if delta_file.name.startswith('.') or delta_file.is_dir():
-            continue
-        if not delta_file.name.endswith('.yaml'):
-            continue
-
+    dir_created = False
+    for delta_file in sorted(deltas_dir.glob('*.yaml')):
         data = parse_yaml_file(str(delta_file))
         if not data or not isinstance(data, dict):
             continue
@@ -90,7 +84,9 @@ def archive_deltas(root, max_age_days, dry_run=False):
 
         if dt and dt < cutoff:
             if not dry_run:
-                archive_dir.mkdir(parents=True, exist_ok=True)
+                if not dir_created:
+                    archive_dir.mkdir(parents=True, exist_ok=True)
+                    dir_created = True
                 shutil.move(str(delta_file), str(archive_dir / delta_file.name))
             archived.append((delta_file.name, str(timestamp)))
 

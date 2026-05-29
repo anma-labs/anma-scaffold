@@ -24,7 +24,6 @@ def generate_project_claude_md(root):
     """Generate a project-level CLAUDE.md."""
     conv = parse_yaml_file(str(root / 'CONVENTIONS.yaml')) or {}
     manifest = parse_yaml_file(str(root / 'MANIFEST.yaml')) or {}
-    graph = parse_yaml_file(str(root / 'GRAPH.yaml')) or {}
 
     modules = manifest.get('modules', {})
     if not isinstance(modules, dict):
@@ -139,15 +138,14 @@ def generate_project_claude_md(root):
     return '\n'.join(lines) + '\n'
 
 
-def generate_module_claude_md(root, module_name):
+def generate_module_claude_md(root, module_name, module_paths=None):
     """Generate a module-level CLAUDE.md for a specific agent."""
-    conv = parse_yaml_file(str(root / 'CONVENTIONS.yaml')) or {}
-    manifest = parse_yaml_file(str(root / 'MANIFEST.yaml')) or {}
     graph = parse_yaml_file(str(root / 'GRAPH.yaml')) or {}
-    try:
-        module_paths = discover_modules(root)
-    except ValueError:
-        module_paths = {}
+    if module_paths is None:
+        try:
+            module_paths = discover_modules(root)
+        except ValueError:
+            module_paths = {}
     mod_dir = module_paths.get(module_name, root / 'modules' / module_name)
     contract = parse_yaml_file(str(mod_dir / 'CONTRACT.yaml')) or {}
 
@@ -271,7 +269,7 @@ def main():
             print(f"ERROR: Module '{args.module}' not found in modules/ or domains/")
             sys.exit(1)
 
-        content = generate_module_claude_md(root, args.module)
+        content = generate_module_claude_md(root, args.module, module_paths=module_paths)
         output = Path(args.output) if args.output else mod_dir / 'CLAUDE.md'
     else:
         content = generate_project_claude_md(root)

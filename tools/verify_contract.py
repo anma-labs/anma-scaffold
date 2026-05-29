@@ -17,21 +17,20 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file
 from discover import discover_modules
 
 
-def load_module_tests(root, module_name):
+def load_module_tests(root, module_name, module_paths=None):
     """Load TESTS.yaml and CONTRACT for a module."""
-    try:
-        module_paths = discover_modules(root)
-    except ValueError as e:
-        print(f"ERROR: {e}")
-        sys.exit(1)
+    if module_paths is None:
+        try:
+            module_paths = discover_modules(root)
+        except ValueError as e:
+            print(f"ERROR: {e}")
+            sys.exit(1)
     mod_dir = module_paths.get(module_name, root / 'modules' / module_name)
     tests_file = mod_dir / 'TESTS.yaml'
     contract_file = mod_dir / 'CONTRACT.yaml'
@@ -154,6 +153,9 @@ def generate_plan(tests, contract, module_name):
 
 def run_endpoint_tests(tests, module_name, endpoint):
     """Run tests against a live HTTP endpoint."""
+    from urllib.request import Request, urlopen
+    from urllib.error import URLError, HTTPError
+
     test_list = tests.get('tests', [])
     if not isinstance(test_list, list):
         test_list = []

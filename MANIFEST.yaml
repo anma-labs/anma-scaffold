@@ -1,6 +1,6 @@
 project: my-project
 version: 1
-updated: 2026-05-28T11:00:09Z
+updated: 2026-05-29T10:56:19Z
 
 modules:
   notifications: { status: draft, owner: core-manager }

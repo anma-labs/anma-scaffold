@@ -15,18 +15,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lint_contracts import parse_yaml_file
-from discover import discover_modules
 
 
 def init_project(root):
     root = Path(root)
 
-    # Report what we're about to remove (uses discovery across both layouts)
-    try:
-        discovered = discover_modules(root)
-    except ValueError:
-        discovered = {}
     removed = []
 
     # Delete all flat module directories
@@ -58,6 +51,7 @@ def init_project(root):
     # Reset MANIFEST.yaml — keep project name and version, clear modules
     manifest_path = root / 'MANIFEST.yaml'
     if manifest_path.exists():
+        from lint_contracts import parse_yaml_file
         data = parse_yaml_file(str(manifest_path))
         if data and isinstance(data, dict):
             project_name = data.get('project', 'my-project')

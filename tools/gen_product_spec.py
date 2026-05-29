@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lint_contracts import parse_yaml_file, load_all_contracts
 
 
 def interface_to_story(mod_name, iface):
@@ -89,6 +88,7 @@ def contract_to_spec(mod_name, contract):
 
 def generate_full_spec(root, module_filter=None):
     """Generate the complete product spec."""
+    from lint_contracts import parse_yaml_file, load_all_contracts
     contracts = load_all_contracts(root)
     manifest = parse_yaml_file(str(root / 'MANIFEST.yaml')) or {}
     project = manifest.get('project', 'Unknown Project')
@@ -99,12 +99,19 @@ def generate_full_spec(root, module_filter=None):
         "",
     ]
 
-    # Summary
+    # Build per-module specs and count interfaces in a single pass
     total_interfaces = 0
-    for contract in contracts.values():
+    module_lines = []
+    for mod_name in sorted(contracts.keys()):
+        contract = contracts[mod_name]
         provides = contract.get('provides', [])
         if isinstance(provides, list):
             total_interfaces += len(provides)
+        if module_filter and mod_name not in module_filter:
+            continue
+        module_lines.append(contract_to_spec(mod_name, contract))
+        module_lines.append("---")
+        module_lines.append("")
 
     lines.extend([
         f"**Modules:** {len(contracts)}",
@@ -114,12 +121,7 @@ def generate_full_spec(root, module_filter=None):
         "",
     ])
 
-    for mod_name in sorted(contracts.keys()):
-        if module_filter and mod_name not in module_filter:
-            continue
-        lines.append(contract_to_spec(mod_name, contracts[mod_name]))
-        lines.append("---")
-        lines.append("")
+    lines.extend(module_lines)
 
     return '\n'.join(lines)
 

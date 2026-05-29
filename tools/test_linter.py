@@ -7,6 +7,7 @@ and CLI behavior. Run with: python3 test_linter.py
 Zero external dependencies — uses only stdlib unittest.
 """
 
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,7 @@ from lint_contracts import (
     check_managers_orchestrator, check_delta_accuracy,
     check_version_pinning, check_stale_requests, check_schemas,
 )
+from discover import discover_modules, get_module_domain, discover_domains
 
 TOOLS_DIR = Path(__file__).parent
 PROJECT_ROOT = TOOLS_DIR.parent
@@ -155,10 +157,11 @@ class TestScaffoldClean(unittest.TestCase):
         cls.conv = load_conventions(cls.root)
         cls.graph = load_graph(cls.root)
         cls.manifest = load_manifest(cls.root)
+        cls.module_paths = discover_modules(cls.root)
 
-    def _run_check(self, fn, *args):
+    def _run_check(self, fn, *args, **kwargs):
         r = LintResult()
-        fn(*args, r)
+        fn(*args, r, **kwargs)
         return r
 
     def test_cross_references(self):
@@ -187,11 +190,11 @@ class TestScaffoldClean(unittest.TestCase):
         self.assertTrue(r.ok())
 
     def test_state(self):
-        r = self._run_check(check_state_files, self.root, self.contracts)
+        r = self._run_check(check_state_files, self.root, self.contracts, module_paths=self.module_paths)
         self.assertTrue(r.ok())
 
     def test_memory(self):
-        r = self._run_check(check_memory_files, self.root, self.contracts, self.conv)
+        r = self._run_check(check_memory_files, self.root, self.contracts, self.conv, module_paths=self.module_paths)
         self.assertTrue(r.ok())
 
     def test_granularity(self):
@@ -199,11 +202,11 @@ class TestScaffoldClean(unittest.TestCase):
         self.assertTrue(r.ok())
 
     def test_tests(self):
-        r = self._run_check(check_test_files, self.root, self.contracts)
+        r = self._run_check(check_test_files, self.root, self.contracts, module_paths=self.module_paths)
         self.assertTrue(r.ok())
 
     def test_budget(self):
-        r = self._run_check(check_context_budget, self.root, self.contracts, self.conv)
+        r = self._run_check(check_context_budget, self.root, self.contracts, self.conv, module_paths=self.module_paths)
         self.assertTrue(r.ok())
 
     def test_conventions_version(self):
@@ -215,15 +218,15 @@ class TestScaffoldClean(unittest.TestCase):
         self.assertTrue(r.ok())
 
     def test_assumptions(self):
-        r = self._run_check(check_assumptions, self.root, self.contracts)
+        r = self._run_check(check_assumptions, self.root, self.contracts, module_paths=self.module_paths)
         self.assertTrue(r.ok())
 
     def test_changelog(self):
-        r = self._run_check(check_changelog, self.root, self.contracts)
+        r = self._run_check(check_changelog, self.root, self.contracts, module_paths=self.module_paths)
         self.assertTrue(r.ok())
 
     def test_replacement(self):
-        r = self._run_check(check_replacement_ready, self.root, self.contracts)
+        r = self._run_check(check_replacement_ready, self.root, self.contracts, module_paths=self.module_paths)
         self.assertTrue(r.ok())
 
     def test_bus(self):
@@ -231,7 +234,7 @@ class TestScaffoldClean(unittest.TestCase):
         self.assertTrue(r.ok())
 
     def test_assumption_compat(self):
-        r = self._run_check(check_assumption_compatibility, self.root, self.contracts)
+        r = self._run_check(check_assumption_compatibility, self.root, self.contracts, module_paths=self.module_paths)
         self.assertTrue(r.ok())
         self.assertIsInstance(r.warnings, list)
 
@@ -712,7 +715,6 @@ class TestYamlEditor(unittest.TestCase):
             "manager: mgr1\nowns: [existing-mod]\n")
 
     def tearDown(self):
-        import shutil
         shutil.rmtree(self.tmpdir)
 
     def test_manifest_add_module(self):
@@ -822,7 +824,6 @@ class TestSessionLog(unittest.TestCase):
         self.root = Path(self.tmpdir)
 
     def tearDown(self):
-        import shutil
         shutil.rmtree(self.tmpdir)
 
     def test_log_activity(self):
@@ -894,7 +895,6 @@ class TestDiscoverModules(unittest.TestCase):
     """Unit tests for tools/discover.py."""
 
     def test_flat_only(self):
-        from discover import discover_modules
         with TempProject() as tp:
             tp.add_module('mod-a', _flat_contract('mod-a'))
             tp.add_module('mod-b', _flat_contract('mod-b'))
@@ -903,7 +903,6 @@ class TestDiscoverModules(unittest.TestCase):
             self.assertTrue(str(found['mod-a']).endswith('modules/mod-a'))
 
     def test_domain_only(self):
-        from discover import discover_modules
         with TempProject() as tp:
             tp.add_domain_module('backend', 'user-auth', _flat_contract('user-auth'))
             found = discover_modules(tp.root)
@@ -911,7 +910,6 @@ class TestDiscoverModules(unittest.TestCase):
             self.assertIn('domains/backend/user-auth', str(found['user-auth']))
 
     def test_mixed_layout(self):
-        from discover import discover_modules
         with TempProject() as tp:
             tp.add_module('shared', _flat_contract('shared'))
             tp.add_domain_module('backend', 'api', _flat_contract('api'))
@@ -919,7 +917,6 @@ class TestDiscoverModules(unittest.TestCase):
             self.assertEqual(set(found.keys()), {'shared', 'api'})
 
     def test_duplicate_raises(self):
-        from discover import discover_modules
         with TempProject() as tp:
             tp.add_module('dupe', _flat_contract('dupe'))
             tp.add_domain_module('backend', 'dupe', _flat_contract('dupe'))
@@ -927,24 +924,20 @@ class TestDiscoverModules(unittest.TestCase):
                 discover_modules(tp.root)
 
     def test_empty_project(self):
-        from discover import discover_modules
         with TempProject() as tp:
             self.assertEqual(discover_modules(tp.root), {})
 
     def test_get_module_domain_flat(self):
-        from discover import get_module_domain
         with TempProject() as tp:
             d = tp.add_module('mod-a', _flat_contract('mod-a'))
             self.assertIsNone(get_module_domain(tp.root, d))
 
     def test_get_module_domain_domain(self):
-        from discover import get_module_domain
         with TempProject() as tp:
             d = tp.add_domain_module('backend', 'api', _flat_contract('api'))
             self.assertEqual(get_module_domain(tp.root, d), 'backend')
 
     def test_discover_domains(self):
-        from discover import discover_domains
         with TempProject() as tp:
             tp.add_domain_module('backend', 'api', _flat_contract('api'))
             tp.add_gateway('backend',
@@ -958,14 +951,12 @@ class TestDiscoverModules(unittest.TestCase):
             self.assertIsNone(domains['frontend']['gateway'])
 
     def test_discover_domains_empty(self):
-        from discover import discover_domains
         with TempProject() as tp:
             self.assertEqual(discover_domains(tp.root), {})
 
 
 def _run_gateway(root, contracts):
     from lint_contracts import check_gateway
-    from discover import discover_modules
     result = LintResult()
     paths = discover_modules(root)
     check_gateway(root, contracts, contracts, paths, result)
@@ -996,7 +987,6 @@ class TestDomainScaling(unittest.TestCase):
             self.assertEqual(set(contracts.keys()), {'shared', 'api'})
 
     def test_duplicate_module_name_rejected(self):
-        from discover import discover_modules
         with TempProject() as tp:
             tp.add_module('dupe', _flat_contract('dupe'))
             tp.add_domain_module('backend', 'dupe', _flat_contract('dupe'))
@@ -1667,7 +1657,6 @@ class TestDomainModuleChecks(unittest.TestCase):
         with TempProject() as tp:
             tp.add_domain_module('backend', 'api', 'module: api')
             tp.add_file('domains/backend/api/STATE.yaml', 'module: api\nstatus: green')
-            from discover import discover_modules
             paths = discover_modules(tp.root)
             r = LintResult()
             check_state_files(tp.root, {'api': {}}, r, module_paths=paths)
@@ -1678,7 +1667,6 @@ class TestDomainModuleChecks(unittest.TestCase):
         with TempProject() as tp:
             tp.add_domain_module('backend', 'api', 'module: api')
             tp.add_file('domains/backend/api/MEMORY.yaml', 'module: api\nentries: []')
-            from discover import discover_modules
             paths = discover_modules(tp.root)
             r = LintResult()
             check_memory_files(tp.root, {'api': {}}, {}, r, module_paths=paths)
@@ -1690,7 +1678,6 @@ class TestDomainModuleChecks(unittest.TestCase):
             tp.add_domain_module('backend', 'api', 'module: api')
             tp.add_file('domains/backend/api/TESTS.yaml',
                         'module: api\ntests:\n  - interface: do_thing\n    case: basic\n    expect: {}')
-            from discover import discover_modules
             paths = discover_modules(tp.root)
             r = LintResult()
             check_test_files(tp.root, {'api': {'provides': [{'id': 'do_thing'}]}}, r, module_paths=paths)
@@ -1702,7 +1689,6 @@ class TestDomainModuleChecks(unittest.TestCase):
             tp.add_domain_module('backend', 'api', 'module: api')
             tp.add_file('domains/backend/api/ASSUMPTIONS.yaml',
                         'module: api\nassumptions:\n  - id: A1\n    category: data\n    content: "uses postgres"')
-            from discover import discover_modules
             paths = discover_modules(tp.root)
             r = LintResult()
             check_assumptions(tp.root, {'api': {}}, r, module_paths=paths)
@@ -1713,7 +1699,6 @@ class TestDomainModuleChecks(unittest.TestCase):
         with TempProject() as tp:
             tp.add_domain_module('backend', 'api', 'module: api')
             tp.add_file('domains/backend/api/CHANGELOG.yaml', 'module: api\nchanges: []')
-            from discover import discover_modules
             paths = discover_modules(tp.root)
             r = LintResult()
             check_changelog(tp.root, {'api': {}}, r, module_paths=paths)
@@ -1726,7 +1711,6 @@ class TestDomainModuleChecks(unittest.TestCase):
             for f in ['CONTRACT.yaml', 'STATE.yaml', 'MEMORY.yaml',
                        'CHANGELOG.yaml', 'TESTS.yaml', 'ASSUMPTIONS.yaml']:
                 tp.add_file(f'domains/backend/api/{f}', 'module: api')
-            from discover import discover_modules
             paths = discover_modules(tp.root)
             r = LintResult()
             check_replacement_ready(tp.root, {'api': {'status': 'stable'}}, r, module_paths=paths)

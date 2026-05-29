@@ -21,17 +21,18 @@ from lint_contracts import parse_yaml_file
 from discover import discover_modules
 
 
-def _module_dir(root, module_name):
-    try:
-        module_paths = discover_modules(root)
-    except ValueError:
-        module_paths = {}
+def _module_dir(root, module_name, module_paths=None):
+    if module_paths is None:
+        try:
+            module_paths = discover_modules(root)
+        except ValueError:
+            module_paths = {}
     return module_paths.get(module_name, root / 'modules' / module_name)
 
 
-def generate_tests(root, module_name):
+def generate_tests(root, module_name, module_paths=None):
     """Generate test stubs from a module's CONTRACT.yaml."""
-    contract_path = _module_dir(root, module_name) / 'CONTRACT.yaml'
+    contract_path = _module_dir(root, module_name, module_paths=module_paths) / 'CONTRACT.yaml'
     if not contract_path.exists():
         print(f"ERROR: No CONTRACT.yaml at {contract_path}", file=sys.stderr)
         sys.exit(1)
@@ -187,11 +188,15 @@ def main():
     args = parser.parse_args()
 
     root = Path(args.path).resolve()
-    tests = generate_tests(root, args.module)
+    try:
+        module_paths = discover_modules(root)
+    except ValueError:
+        module_paths = {}
+    tests = generate_tests(root, args.module, module_paths=module_paths)
 
     # Append mode: filter out tests for already-covered interfaces, merge with existing
     if args.append:
-        existing_path = _module_dir(root, args.module) / 'TESTS.yaml'
+        existing_path = _module_dir(root, args.module, module_paths=module_paths) / 'TESTS.yaml'
         if existing_path.exists():
             existing = parse_yaml_file(str(existing_path))
             if existing and isinstance(existing.get('tests'), list):

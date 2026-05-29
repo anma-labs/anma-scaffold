@@ -14,8 +14,6 @@ Usage:
 """
 
 import argparse
-import hashlib
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +21,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file
 from discover import discover_modules, get_module_domain
+from gen_tests import generate_tests, format_tests_yaml
+from gen_graph import generate_graph, format_graph_yaml
 
 TOOLS_DIR = Path(__file__).parent
 REQUIRED_FILES = ['CONTRACT.yaml', 'STATE.yaml', 'MEMORY.yaml',
@@ -32,6 +32,7 @@ SYNC_STATE_FILE = '.anma/sync-state.yaml'
 
 def _sha256_file(path):
     """Return hex sha256 of a file, or empty string if it doesn't exist."""
+    import hashlib
     try:
         return hashlib.sha256(Path(path).read_bytes()).hexdigest()
     except FileNotFoundError:
@@ -125,6 +126,12 @@ def sync_all(root, regenerate_only=False, force=False):
     print(f"Found {len(module_names)} module(s): {', '.join(module_names)}")
     print()
 
+    # Parse all contracts once upfront — reused by TESTS, GRAPH, and MANIFEST
+    all_contracts = {}
+    for mn in module_names:
+        cp = module_paths[mn] / 'CONTRACT.yaml'
+        all_contracts[mn] = parse_yaml_file(str(cp)) or {}
+
     freshly_stubbed_tests = set()
 
     if not regenerate_only:
@@ -159,7 +166,7 @@ def sync_all(root, regenerate_only=False, force=False):
         for mod_name in module_names:
             mod_dir = module_paths[mod_name]
             contract_path = mod_dir / 'CONTRACT.yaml'
-            contract = parse_yaml_file(str(contract_path)) or {}
+            contract = all_contracts[mod_name]
             provides = contract.get('provides', [])
             if not provides or not isinstance(provides, list):
                 print(f"  Skipped {mod_name}/TESTS.yaml (no interfaces yet)")
@@ -176,34 +183,29 @@ def sync_all(root, regenerate_only=False, force=False):
                 continue
 
             tests_path = mod_dir / 'TESTS.yaml'
-            result = subprocess.run(
-                [sys.executable, str(TOOLS_DIR / 'gen_tests.py'), mod_name,
-                 '--output', str(tests_path), '--path', str(root)],
-                capture_output=True, text=True
-            )
-            if result.returncode == 0:
+            try:
+                tests = generate_tests(root, mod_name,
+                                       module_paths=module_paths)
+                content = format_tests_yaml(mod_name, tests)
+                tests_path.write_text(content)
                 updated.append(f"{mod_name}/TESTS.yaml")
                 print(f"  Regenerated {mod_name}/TESTS.yaml")
-            else:
-                err = result.stderr.strip() or result.stdout.strip()
-                print(f"  WARNING: gen_tests.py failed for {mod_name}: {err}")
-                # Drop hash so next run will retry
+            except (Exception, SystemExit) as e:
+                print(f"  WARNING: gen_tests failed for {mod_name}: {e}")
                 new_contract_hashes.pop(mod_name, None)
 
         _save_sync_state(root, tool_hash, new_contract_hashes)
 
     # Step 3: Regenerate GRAPH.yaml
     print()
-    result = subprocess.run(
-        [sys.executable, str(TOOLS_DIR / 'gen_graph.py'), '--path', str(root)],
-        capture_output=True, text=True
-    )
-    if result.returncode == 0:
+    try:
+        consumes_map, consumed_by = generate_graph(root, contracts=all_contracts)
+        graph_content = format_graph_yaml(consumes_map, consumed_by)
+        (root / 'GRAPH.yaml').write_text(graph_content)
         updated.append('GRAPH.yaml')
         print("  Regenerated GRAPH.yaml")
-    else:
-        err = result.stderr.strip() or result.stdout.strip()
-        print(f"  WARNING: gen_graph.py failed: {err}")
+    except Exception as e:
+        print(f"  WARNING: gen_graph failed: {e}")
 
     # Step 4: Rebuild MANIFEST.yaml modules section
     manifest_path = root / 'MANIFEST.yaml'
@@ -214,25 +216,26 @@ def sync_all(root, regenerate_only=False, force=False):
         managers = data.get('managers', {})
         orchestrator = data.get('orchestrator', 'active')
 
-        # Build modules dict from existing contracts
+        # Pre-build owner lookup: O(M) instead of O(N*M)
+        owner_map = {}
+        if isinstance(managers, dict):
+            for mgr_name, mgr_data in managers.items():
+                if isinstance(mgr_data, dict):
+                    owns = mgr_data.get('owns', [])
+                elif isinstance(mgr_data, list):
+                    owns = mgr_data
+                else:
+                    owns = []
+                for m in owns:
+                    owner_map[m] = mgr_name
+
+        # Build modules dict from cached contracts
         modules_dict = {}
         for mod_name in module_names:
             mod_dir = module_paths[mod_name]
-            contract = parse_yaml_file(str(mod_dir / 'CONTRACT.yaml')) or {}
+            contract = all_contracts[mod_name]
             status = contract.get('status', 'draft')
-            # Find owner from existing managers
-            owner = None
-            if isinstance(managers, dict):
-                for mgr_name, mgr_data in managers.items():
-                    if isinstance(mgr_data, dict):
-                        owns = mgr_data.get('owns', [])
-                    elif isinstance(mgr_data, list):
-                        owns = mgr_data
-                    else:
-                        owns = []
-                    if mod_name in owns:
-                        owner = mgr_name
-                        break
+            owner = owner_map.get(mod_name)
             entry = {'status': status}
             if owner:
                 entry['owner'] = owner
@@ -285,6 +288,7 @@ def sync_all(root, regenerate_only=False, force=False):
 
     if not regenerate_only:
         # Step 5: Clean orphaned BUS files
+        module_names_set = set(module_names)
         for bus_subdir in ['deltas', 'requests']:
             bus_dir = root / 'BUS' / bus_subdir
             if not bus_dir.exists():
@@ -304,8 +308,8 @@ def sync_all(root, regenerate_only=False, force=False):
                 if isinstance(affected, dict):
                     for consumer in affected.get('consumers_affected', []):
                         refs.add(str(consumer))
-                orphaned = refs - set(module_names)
-                if orphaned and not refs & set(module_names):
+                orphaned = refs - module_names_set
+                if orphaned and not refs & module_names_set:
                     f.unlink()
                     deleted.append(f"BUS/{bus_subdir}/{f.name}")
                     print(f"  Deleted orphaned BUS/{bus_subdir}/{f.name}")

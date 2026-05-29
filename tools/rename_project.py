@@ -32,11 +32,12 @@ def main():
 
     print(f"\nANMA Project Rename\n  From: {old_name}\n  To:   {new_name}\n")
     files = [root / 'MANIFEST.yaml', root / 'orchestrator' / 'PLAN.yaml', root / 'README.md']
+    pattern = re.compile(r'(?<![a-z0-9-])' + re.escape(old_name) + r'(?![a-z0-9-])')
     updated = 0
     for fp in files:
         if fp.exists():
             c = fp.read_text()
-            nc = re.sub(r'(?<![a-z0-9-])' + re.escape(old_name) + r'(?![a-z0-9-])', new_name, c)
+            nc = pattern.sub(new_name, c)
             if nc != c: fp.write_text(nc); print(f"  Updated {fp.relative_to(root)}"); updated += 1
     print(f"\n  Renamed in {updated} file(s). Run 'python3 gen_claude_md.py' to regenerate CLAUDE.md.\n")
 

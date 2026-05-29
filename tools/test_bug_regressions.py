@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lint_contracts import parse_yaml_file, parse_yaml
+from claims import _save_claims, _load_claims
 
 TOOLS_DIR = Path(__file__).parent
 
@@ -154,7 +155,7 @@ class TestBug002ClaimsQuoting(unittest.TestCase):
 
     def test_special_chars_in_by_field(self):
         """Claims with YAML-special characters must round-trip correctly."""
-        from claims import _save_claims, _load_claims
+
         with TempProject() as tp:
             claims = {
                 'test-mod': {
@@ -170,7 +171,7 @@ class TestBug002ClaimsQuoting(unittest.TestCase):
 
     def test_yaml_boolean_word_in_by(self):
         """Claim by 'yes' must stay as string, not become boolean True."""
-        from claims import _save_claims, _load_claims
+
         with TempProject() as tp:
             claims = {'mod': {'by': 'yes', 'branch': 'main', 'since': '2026-01-01T00:00:00Z'}}
             _save_claims(tp.root, claims)
@@ -642,7 +643,7 @@ class TestSec003ClaimsYamlInjection(unittest.TestCase):
 
     def test_double_quote_in_by_roundtrips(self):
         """A 'by' field containing double quotes must survive save/load."""
-        from claims import _save_claims, _load_claims
+
         with TempProject() as tp:
             claims = {'test-mod': {
                 'by': 'foo", injected: true, x: "bar',
@@ -655,7 +656,7 @@ class TestSec003ClaimsYamlInjection(unittest.TestCase):
 
     def test_colon_in_by_roundtrips(self):
         """A 'by' field with YAML-special ':' must round-trip correctly."""
-        from claims import _save_claims, _load_claims
+
         with TempProject() as tp:
             claims = {'test-mod': {
                 'by': 'agent: admin',
@@ -668,7 +669,7 @@ class TestSec003ClaimsYamlInjection(unittest.TestCase):
 
     def test_yaml_boolean_word_stays_string(self):
         """'yes' as by-field must stay string, not become boolean."""
-        from claims import _save_claims, _load_claims
+
         with TempProject() as tp:
             claims = {'mod': {'by': 'yes', 'branch': 'main', 'since': '2026-01-01T00:00:00Z'}}
             _save_claims(tp.root, claims)
@@ -678,7 +679,7 @@ class TestSec003ClaimsYamlInjection(unittest.TestCase):
 
     def test_newline_in_branch_roundtrips(self):
         """A branch containing newlines must not corrupt the file."""
-        from claims import _save_claims, _load_claims
+
         with TempProject() as tp:
             claims = {'test-mod': {
                 'by': 'user',
@@ -691,7 +692,7 @@ class TestSec003ClaimsYamlInjection(unittest.TestCase):
 
     def test_claims_file_is_valid_yaml(self):
         """claims.yaml must always be parseable after save with adversarial input."""
-        from claims import _save_claims, _load_claims
+
         with TempProject() as tp:
             claims = {
                 'mod-a': {'by': '{evil: true}', 'branch': '[1,2,3]', 'since': 'null'},

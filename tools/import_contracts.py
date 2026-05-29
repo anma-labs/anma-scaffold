@@ -21,7 +21,6 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lint_contracts import parse_yaml_file
 from discover import discover_modules
 
 TOOLS_DIR = Path(__file__).parent
@@ -42,6 +41,7 @@ def extract_module_name(filepath):
         return name[:-len("-CONTRACT")].lower()
 
     # Fallback: parse YAML
+    from lint_contracts import parse_yaml_file
     data = parse_yaml_file(str(filepath))
     if data and isinstance(data, dict) and data.get("module"):
         return str(data["module"])

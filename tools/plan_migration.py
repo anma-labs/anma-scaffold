@@ -14,6 +14,7 @@ Zero external dependencies.
 import argparse
 import json
 import sys
+from collections import deque
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -21,33 +22,35 @@ from lint_contracts import parse_yaml_file, load_all_contracts
 
 
 def find_all_consumers(module, graph_modules, depth=0, seen=None):
-    """Recursively find all direct and transitive consumers."""
+    """Find all direct and transitive consumers using iterative BFS."""
     if seen is None:
         seen = set()
-    if module in seen or depth > 50:
-        return []
     seen.add(module)
 
     consumers = []
-    mod_data = graph_modules.get(module, {})
-    if not isinstance(mod_data, dict):
-        return consumers
+    queue = deque([(module, depth)])
 
-    direct = mod_data.get('consumed_by', [])
-    if not isinstance(direct, list):
-        return consumers
+    while queue:
+        current, cur_depth = queue.popleft()
 
-    for consumer in direct:
-        c_str = str(consumer)
-        if c_str not in seen:
-            consumers.append({
-                'module': c_str,
-                'depth': depth + 1,
-                'via': module,
-            })
-            # Recurse for transitive consumers
-            transitive = find_all_consumers(c_str, graph_modules, depth + 1, seen)
-            consumers.extend(transitive)
+        mod_data = graph_modules.get(current, {})
+        if not isinstance(mod_data, dict):
+            continue
+
+        direct = mod_data.get('consumed_by', [])
+        if not isinstance(direct, list):
+            continue
+
+        for consumer in direct:
+            c_str = str(consumer)
+            if c_str not in seen:
+                seen.add(c_str)
+                consumers.append({
+                    'module': c_str,
+                    'depth': cur_depth + 1,
+                    'via': current,
+                })
+                queue.append((c_str, cur_depth + 1))
 
     return consumers
 
@@ -74,33 +77,49 @@ def build_migration_plan(root, module_name, target_version):
     # Find all consumers (direct + transitive)
     consumers = find_all_consumers(module_name, graph_modules)
 
+    # Pre-build reverse index: {consumer_module: {dep_module: consumes_entry}}
+    consumer_deps = {}
+    for mod, c in contracts.items():
+        raw = c.get('consumes', [])
+        if isinstance(raw, list):
+            consumer_deps[mod] = {
+                str(e.get('module', '')): e
+                for e in raw if isinstance(e, dict)
+            }
+
     # Enrich with version pin data
     for consumer in consumers:
         c_contract = contracts.get(consumer['module'], {})
         consumer['status'] = str(c_contract.get('status', '?'))
         consumer['pinned_version'] = None
 
-        raw_consumes = c_contract.get('consumes', [])
-        if isinstance(raw_consumes, list):
-            for entry in raw_consumes:
-                if isinstance(entry, dict) and str(entry.get('module', '')) == module_name:
-                    consumer['pinned_version'] = entry.get('contract_version')
-                    consumer['interface'] = str(entry.get('interface', '?'))
-                    break
+        entry = consumer_deps.get(consumer['module'], {}).get(module_name)
+        if entry:
+            consumer['pinned_version'] = entry.get('contract_version')
+            consumer['interface'] = str(entry.get('interface', '?'))
 
     # Compute update order
     ordered = compute_update_order(consumers)
 
-    # Check for frozen consumers
-    frozen = [c for c in ordered if c['status'] == 'frozen']
+    # Single pass: classify consumers and collect frozen blockers
+    frozen = []
+    direct_consumers = []
+    transitive_consumers = []
+    for c in ordered:
+        if c['status'] == 'frozen':
+            frozen.append(c)
+        if c['depth'] == 1:
+            direct_consumers.append(c)
+        elif c['depth'] > 1:
+            transitive_consumers.append(c)
 
     plan = {
         'provider': module_name,
         'current_version': current_version,
         'target_version': target_version,
         'total_affected': len(consumers),
-        'direct_consumers': [c for c in ordered if c['depth'] == 1],
-        'transitive_consumers': [c for c in ordered if c['depth'] > 1],
+        'direct_consumers': direct_consumers,
+        'transitive_consumers': transitive_consumers,
         'update_order': ordered,
         'frozen_blockers': frozen,
         'rollback': {

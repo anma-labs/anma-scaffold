@@ -15,8 +15,8 @@ def find_project_root(start='.'):
         if (parent / 'MANIFEST.yaml').exists(): return parent
     return p
 
-def check_consumers(root, name):
-    contracts = load_all_contracts(root)
+def check_consumers(root, name, module_paths=None):
+    contracts = load_all_contracts(root, module_paths=module_paths)
     consumers = []
     for mod_name, contract in contracts.items():
         if mod_name == name: continue
@@ -83,7 +83,7 @@ def main():
     except ImportError:
         pass
 
-    consumers = check_consumers(root, name)
+    consumers = check_consumers(root, name, module_paths=module_paths)
     if consumers and not args.force:
         print(f"\n  ERROR: Cannot remove '{name}' — consumed by: {', '.join(consumers)}")
         print(f"  Update these modules' contracts first, or use --force.\n"); sys.exit(1)
@@ -104,7 +104,7 @@ def main():
     messages.append(f"  Backed up to .anma-backup/{name}/")
 
     # Clean up using yaml_editor
-    from yaml_editor import manifest_remove_module, graph_remove_module, scope_remove_module, read_manifest
+    from yaml_editor import manifest_remove_module, graph_remove_module, scope_remove_module
     
     manifest_remove_module(root, name)
     messages.append(f"  Removed '{name}' from MANIFEST")

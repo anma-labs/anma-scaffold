@@ -2,7 +2,7 @@
 """ANMA New Manager Scaffolding Script.
 Usage: python3 new_manager.py core-manager --owns auth,user-profiles
 """
-import argparse, re, shutil, sys
+import argparse, re, sys
 from pathlib import Path
 
 def find_project_root(start='.'):
@@ -54,6 +54,7 @@ def main():
     if ok:
         print(f"  Updated MANIFEST.yaml")
     else:
+        import shutil
         shutil.rmtree(mgr_dir)
         print(f"  ERROR: {err}")
         sys.exit(1)

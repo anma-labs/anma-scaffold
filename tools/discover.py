@@ -21,18 +21,18 @@ def discover_modules(root):
     # Flat layout: modules/<module>/
     modules_dir = root / 'modules'
     if modules_dir.is_dir():
-        for d in sorted(modules_dir.iterdir()):
+        for d in modules_dir.iterdir():
             if d.is_dir() and (d / 'CONTRACT.yaml').exists():
                 found[d.name] = d
 
     # Domain layout: domains/<domain>/<module>/
     domains_dir = root / 'domains'
     if domains_dir.is_dir():
-        for domain_dir in sorted(domains_dir.iterdir()):
+        for domain_dir in domains_dir.iterdir():
             if not domain_dir.is_dir() or domain_dir.name.startswith('.'):
                 continue
             # Skip GATEWAY.yaml and non-directory entries
-            for d in sorted(domain_dir.iterdir()):
+            for d in domain_dir.iterdir():
                 if d.is_dir() and (d / 'CONTRACT.yaml').exists():
                     if d.name in found:
                         dupes.append(

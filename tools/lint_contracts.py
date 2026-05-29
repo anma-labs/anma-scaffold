@@ -16,10 +16,21 @@ import sys
 import re
 import argparse
 import importlib.util
-from datetime import datetime, timezone, timedelta
+from collections import Counter
+from datetime import datetime, timezone, timedelta, date
 from pathlib import Path
 
 from discover import discover_modules, discover_domains
+
+_parse_cache = {}
+
+
+def _cached_parse(filepath):
+    """parse_yaml_file with per-run caching. Safe for read-only lint passes."""
+    filepath = str(filepath)
+    if filepath not in _parse_cache:
+        _parse_cache[filepath] = parse_yaml_file(filepath)
+    return _parse_cache[filepath]
 
 # ---------------------------------------------------------------------------
 # YAML parsing — uses PyYAML when available, falls back to built-in parser.
@@ -51,7 +62,8 @@ def parse_yaml_file(filepath, strict=False):
     try:
         with open(filepath, 'r') as f:
             content = f.read()
-        return _parse_yaml_auto(content, source=str(filepath), strict=strict)
+        result = _parse_yaml_auto(content, source=str(filepath), strict=strict)
+        return result
     except FileNotFoundError:
         return None
     except Exception as e:
@@ -85,7 +97,6 @@ def _parse_yaml_auto(text, source=None, strict=False):
 def _normalize_types(obj):
     """Recursively convert PyYAML-specific types (datetime, date) to strings
     for consistency with the built-in parser."""
-    from datetime import datetime, date
     if isinstance(obj, dict):
         for k, v in obj.items():
             if isinstance(v, datetime):
@@ -471,17 +482,18 @@ def find_project_root(start_path='.'):
     return Path(start_path).resolve()
 
 
-def load_all_contracts(root):
+def load_all_contracts(root, module_paths=None):
     """Load all module CONTRACT.yaml files. Returns {module_name: contract_dict}.
     Includes empty/malformed contracts so structure checks can report them."""
     contracts = {}
-    try:
-        module_paths = discover_modules(root)
-    except ValueError:
-        # Duplicate module names — main() will re-call discover_modules and
-        # surface the error there. Return empty so the "no contracts" check
-        # in main() doesn't mask it.
-        return contracts
+    if module_paths is None:
+        try:
+            module_paths = discover_modules(root)
+        except ValueError:
+            # Duplicate module names — main() will re-call discover_modules and
+            # surface the error there. Return empty so the "no contracts" check
+            # in main() doesn't mask it.
+            return contracts
     for mod_name, mod_dir in module_paths.items():
         contract_file = mod_dir / 'CONTRACT.yaml'
         data = parse_yaml_file(str(contract_file))
@@ -556,10 +568,7 @@ def check_cross_references(contracts, all_contracts, result):
                     f"'{target_module}' has no provides section")
                 continue
 
-            provided_ids = []
-            for p in provides:
-                if isinstance(p, dict):
-                    provided_ids.append(p.get('id'))
+            provided_ids = {p.get('id') for p in provides if isinstance(p, dict)}
 
             if target_interface not in provided_ids:
                 result.error(mod_name,
@@ -638,14 +647,16 @@ def check_graph_consistency(contracts, all_contracts, graph, result):
     for mod_name, entry in graph_modules.items():
         consumes_list = entry.get('consumes', [])
         if isinstance(consumes_list, list) and len(consumes_list) != len(set(consumes_list)):
-            dupes = [x for x in consumes_list if consumes_list.count(x) > 1]
+            counts = Counter(consumes_list)
+            dupes = sorted(x for x, c in counts.items() if c > 1)
             result.warning('GRAPH',
-                f"'{mod_name}' has duplicate entries in consumes: {sorted(set(dupes))}")
+                f"'{mod_name}' has duplicate entries in consumes: {dupes}")
         consumed_by_list = entry.get('consumed_by', [])
         if isinstance(consumed_by_list, list) and len(consumed_by_list) != len(set(consumed_by_list)):
-            dupes = [x for x in consumed_by_list if consumed_by_list.count(x) > 1]
+            counts = Counter(consumed_by_list)
+            dupes = sorted(x for x, c in counts.items() if c > 1)
             result.warning('GRAPH',
-                f"'{mod_name}' has duplicate entries in consumed_by: {sorted(set(dupes))}")
+                f"'{mod_name}' has duplicate entries in consumed_by: {dupes}")
 
 
 # ---------------------------------------------------------------------------
@@ -923,7 +934,7 @@ def check_state_files(root, contracts, result, module_paths=None):
             result.warning(mod_name, "Missing STATE.yaml")
             continue
 
-        state = parse_yaml_file(str(state_file))
+        state = _cached_parse(state_file)
         if not state:
             result.error(mod_name, "STATE.yaml exists but is empty or unparseable")
             continue
@@ -968,7 +979,7 @@ def check_memory_files(root, contracts, conventions, result, module_paths=None):
             result.warning(mod_name, "Missing MEMORY.yaml")
             continue
 
-        mem = parse_yaml_file(str(mem_file))
+        mem = _cached_parse(mem_file)
         if not mem:
             result.error(mod_name, "MEMORY.yaml exists but is empty or unparseable")
             continue
@@ -1101,7 +1112,7 @@ def check_test_files(root, contracts, result, module_paths=None):
             result.warning(mod_name, "Missing TESTS.yaml")
             continue
 
-        tests = parse_yaml_file(str(test_file))
+        tests = _cached_parse(test_file)
         if not tests:
             result.error(mod_name, "TESTS.yaml exists but is empty or unparseable")
             continue
@@ -1337,11 +1348,16 @@ def check_module_types(contracts, conventions, result):
 # ---------------------------------------------------------------------------
 
 def check_assumptions(root, contracts, result, module_paths=None):
-    """Verify each module's ASSUMPTIONS.yaml is well-structured."""
+    """Verify each module's ASSUMPTIONS.yaml is well-structured.
+
+    Returns a dict of {module_name: parsed_data} for reuse by
+    check_assumption_compatibility."""
     print("── Check 14: Assumptions ──")
 
     if module_paths is None:
         module_paths = discover_modules(root)
+
+    parsed_assumptions = {}
 
     for mod_name in contracts:
         mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
@@ -1350,11 +1366,13 @@ def check_assumptions(root, contracts, result, module_paths=None):
             result.warning(mod_name, "Missing ASSUMPTIONS.yaml")
             continue
 
-        data = parse_yaml_file(str(assumptions_file))
+        data = _cached_parse(assumptions_file)
         if not data:
             result.error(mod_name,
                 "ASSUMPTIONS.yaml exists but is empty or unparseable")
             continue
+
+        parsed_assumptions[mod_name] = data
 
         # Check module field
         declared = data.get('module')
@@ -1405,6 +1423,8 @@ def check_assumptions(root, contracts, result, module_paths=None):
                     f"ASSUMPTIONS.yaml entry {i} content is "
                     f"{len(str(content))} chars (keep under 200)")
 
+    return parsed_assumptions
+
 
 # ---------------------------------------------------------------------------
 # Check 15: CHANGELOG.yaml structure
@@ -1424,7 +1444,7 @@ def check_changelog(root, contracts, result, module_paths=None):
             result.warning(mod_name, "Missing CHANGELOG.yaml")
             continue
 
-        data = parse_yaml_file(str(cl_file))
+        data = _cached_parse(cl_file)
         if not data:
             result.error(mod_name,
                 "CHANGELOG.yaml exists but is empty or unparseable")
@@ -1606,7 +1626,8 @@ def check_bus(root, all_contracts, result):
 # Check 18: Cross-module assumption compatibility
 # ---------------------------------------------------------------------------
 
-def check_assumption_compatibility(root, all_contracts, result, module_paths=None):
+def check_assumption_compatibility(root, all_contracts, result, module_paths=None,
+                                   parsed_assumptions=None):
     """Flag assumptions in the same category across different modules for review."""
     print("── Check 18: Assumption compatibility ──")
 
@@ -1616,12 +1637,16 @@ def check_assumption_compatibility(root, all_contracts, result, module_paths=Non
     # Collect all assumptions by category: {category: [(module, id, content), ...]}
     by_category = {}
     for mod_name in all_contracts:
-        mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
-        assumptions_file = mod_dir / 'ASSUMPTIONS.yaml'
-        if not assumptions_file.exists():
-            continue
+        # Reuse cached parse if available, otherwise parse fresh
+        if parsed_assumptions is not None and mod_name in parsed_assumptions:
+            data = parsed_assumptions[mod_name]
+        else:
+            mod_dir = module_paths.get(mod_name, root / 'modules' / mod_name)
+            assumptions_file = mod_dir / 'ASSUMPTIONS.yaml'
+            if not assumptions_file.exists():
+                continue
+            data = _cached_parse(assumptions_file)
 
-        data = parse_yaml_file(str(assumptions_file))
         if not data or not isinstance(data.get('assumptions'), list):
             continue
 
@@ -1682,6 +1707,7 @@ def check_managers_orchestrator(root, all_contracts, manifest, result):
 
         # --- SCOPE.yaml ---
         scope_file = mgr_dir / 'SCOPE.yaml'
+        scope = None
         if scope_file.exists():
             scope = parse_yaml_file(str(scope_file))
             if scope and isinstance(scope, dict):
@@ -1729,7 +1755,7 @@ def check_managers_orchestrator(root, all_contracts, manifest, result):
                 # Plan modules reference real modules
                 plan = strategy.get('plan')
                 if plan and isinstance(plan, list):
-                    scope_data = parse_yaml_file(str(scope_file)) if scope_file.exists() else {}
+                    scope_data = scope if scope else {}
                     scope_owns = set()
                     if scope_data and isinstance(scope_data, dict):
                         so = scope_data.get('owns', [])
@@ -2026,7 +2052,7 @@ def check_schemas(root, contracts, result, module_paths=None):
             filepath = mod_dir / f'{filename}.yaml'
             if not filepath.exists():
                 continue
-            data = parse_yaml_file(str(filepath))
+            data = _cached_parse(filepath)
             if not data or not isinstance(data, dict):
                 continue
 
@@ -2151,22 +2177,24 @@ def main():
     print(f"\nANMA Contract Linter v0.1")
     print(f"Project root: {root}\n")
 
+    _parse_cache.clear()
     result = LintResult()
 
+    # Discover modules once and reuse everywhere
+    try:
+        module_paths = discover_modules(root)
+    except ValueError as e:
+        print(f"  ✗ {e}")
+        sys.exit(1)
+
     # Load everything
-    contracts = load_all_contracts(root)
+    contracts = load_all_contracts(root, module_paths=module_paths)
     graph = load_graph(root)
     conventions = load_conventions(root)
     manifest = load_manifest(root)
 
     if not contracts:
         print("  ✗ No contracts found in modules/ or domains/ directory.\n")
-        sys.exit(1)
-
-    try:
-        module_paths = discover_modules(root)
-    except ValueError as e:
-        print(f"  ✗ {e}")
         sys.exit(1)
 
     # all_contracts is the full set (needed for cross-reference lookups).
@@ -2204,11 +2232,12 @@ def main():
     check_context_budget(root, contracts, conventions, result, module_paths=module_paths)
     check_conventions_version(conventions, result)
     check_module_types(contracts, conventions, result)
-    check_assumptions(root, contracts, result, module_paths=module_paths)
+    parsed_assumptions = check_assumptions(root, contracts, result, module_paths=module_paths)
     check_changelog(root, contracts, result, module_paths=module_paths)
     check_replacement_ready(root, contracts, result, module_paths=module_paths)
     check_bus(root, all_contracts, result)
-    check_assumption_compatibility(root, all_contracts, result, module_paths=module_paths)
+    check_assumption_compatibility(root, all_contracts, result, module_paths=module_paths,
+                                   parsed_assumptions=parsed_assumptions)
     check_managers_orchestrator(root, all_contracts, manifest, result)
     check_delta_accuracy(root, all_contracts, result)
     check_version_pinning(contracts, all_contracts, result)

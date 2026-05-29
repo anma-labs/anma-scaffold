@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lint_contracts import parse_yaml_file
+from lint_contracts import parse_yaml_file, load_all_contracts
 from discover import discover_modules
 
 
@@ -36,26 +36,37 @@ def generate_mermaid(root):
     if not isinstance(manifest_modules, dict):
         manifest_modules = {}
 
+    # Batch-load all contracts once instead of N individual parse_yaml_file calls
+    all_contracts = load_all_contracts(root, module_paths=module_paths)
+
+    # Sort module keys once and reuse
+    sorted_mods = sorted(graph_modules.keys())
+
+    # Style nodes by status
+    status_styles = {
+        'draft': 'fill:#fff3cd,stroke:#ffc107',
+        'stable': 'fill:#d4edda,stroke:#28a745',
+        'frozen': 'fill:#cce5ff,stroke:#007bff',
+        'deprecated': 'fill:#f8d7da,stroke:#dc3545',
+    }
+
     lines = [
         "graph TD",
     ]
+    style_lines = []
 
-    # Define nodes with status styling
-    for mod_name in sorted(graph_modules.keys()):
+    # Define nodes with status styling and collect style lines in one pass
+    for mod_name in sorted_mods:
         # Get status from manifest or contract
         mod_info = manifest_modules.get(mod_name, {})
         status = 'unknown'
         if isinstance(mod_info, dict):
             status = str(mod_info.get('status', 'unknown'))
 
-        # Get type from contract
-        contract_file = module_paths.get(mod_name, root / 'modules' / mod_name) / 'CONTRACT.yaml'
-        mod_type = 'regular'
-        purpose = ''
-        if contract_file.exists():
-            contract = parse_yaml_file(str(contract_file)) or {}
-            mod_type = str(contract.get('type', 'regular'))
-            purpose = str(contract.get('purpose', ''))
+        # Get type from pre-loaded contract
+        contract = all_contracts.get(mod_name, {})
+        mod_type = str(contract.get('type', 'regular'))
+        purpose = str(contract.get('purpose', ''))
 
         # Node shape based on type
         label = mod_name
@@ -68,10 +79,15 @@ def generate_mermaid(root):
         else:
             lines.append(f"    {mod_name}[\"{label}\"]")
 
+        # Collect style in same pass
+        if status in status_styles:
+            style_lines.append(f"    style {mod_name} {status_styles[status]}")
+
     lines.append("")
 
     # Define edges from consumes
-    for mod_name, mod_data in sorted(graph_modules.items()):
+    for mod_name in sorted_mods:
+        mod_data = graph_modules[mod_name]
         if not isinstance(mod_data, dict):
             continue
         consumes = mod_data.get('consumes', [])
@@ -84,21 +100,8 @@ def generate_mermaid(root):
 
     lines.append("")
 
-    # Style nodes by status
-    status_styles = {
-        'draft': 'fill:#fff3cd,stroke:#ffc107',
-        'stable': 'fill:#d4edda,stroke:#28a745',
-        'frozen': 'fill:#cce5ff,stroke:#007bff',
-        'deprecated': 'fill:#f8d7da,stroke:#dc3545',
-    }
-
-    for mod_name in sorted(graph_modules.keys()):
-        mod_info = manifest_modules.get(mod_name, {})
-        status = 'unknown'
-        if isinstance(mod_info, dict):
-            status = str(mod_info.get('status', 'unknown'))
-        if status in status_styles:
-            lines.append(f"    style {mod_name} {status_styles[status]}")
+    # Append pre-collected style lines
+    lines.extend(style_lines)
 
     return '\n'.join(lines) + '\n'
 

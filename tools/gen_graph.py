@@ -19,16 +19,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lint_contracts import load_all_contracts
 
 
-def generate_graph(root):
+def generate_graph(root, contracts=None):
     """Build graph data from all CONTRACT consumes fields."""
-    contracts = load_all_contracts(root)
+    if contracts is None:
+        from lint_contracts import load_all_contracts
+        contracts = load_all_contracts(root)
 
     # Build consumes and consumed_by
     consumes_map = {}   # {module: [dep1, dep2]}
-    consumed_by = {}    # {module: [consumer1, consumer2]}
+    consumed_by = {}    # {module: set(consumer1, consumer2)}
 
     for mod_name in sorted(contracts.keys()):
         contract = contracts[mod_name]
@@ -40,19 +41,18 @@ def generate_graph(root):
                     deps.append(str(entry['module']))
         consumes_map[mod_name] = list(dict.fromkeys(deps))  # deduplicate, preserve order
         if mod_name not in consumed_by:
-            consumed_by[mod_name] = []
+            consumed_by[mod_name] = set()
 
     # Compute inverse
     for mod_name, deps in consumes_map.items():
         for dep in deps:
             if dep not in consumed_by:
-                consumed_by[dep] = []
-            if mod_name not in consumed_by[dep]:
-                consumed_by[dep].append(mod_name)
+                consumed_by[dep] = set()
+            consumed_by[dep].add(mod_name)
 
-    # Sort consumed_by lists
+    # Convert sets to sorted lists for stable output
     for key in consumed_by:
-        consumed_by[key].sort()
+        consumed_by[key] = sorted(consumed_by[key])
 
     return consumes_map, consumed_by
 
@@ -132,7 +132,7 @@ def main():
             sys.exit(0)
         else:
             print("GRAPH.yaml is STALE — run gen_graph.py to update")
-            for mod in sorted(set(list(existing_mods.keys()) + list(new_mods.keys()))):
+            for mod in sorted(existing_mods.keys() | new_mods.keys()):
                 old = existing_mods.get(mod, {})
                 new = new_mods.get(mod, {})
                 if old != new:

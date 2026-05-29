@@ -3,9 +3,7 @@
 
 import argparse
 import os
-import subprocess
 import sys
-import yaml
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,6 +17,7 @@ CLAIMS_FILE = '.anma/claims.yaml'
 
 def _get_git_branch():
     try:
+        import subprocess
         result = subprocess.run(
             ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
             capture_output=True, text=True, timeout=5)
@@ -41,6 +40,7 @@ def _save_claims(root, claims):
     root = Path(root)
     path = root / CLAIMS_FILE
     (root / CLAIMS_DIR).mkdir(exist_ok=True)
+    import yaml
     header = '# Who is working on what. Updated via: anma claim / anma release\n'
     body = yaml.safe_dump({'claims': claims or {}}, default_flow_style=False, sort_keys=True)
     path.write_text(header + body)
@@ -122,17 +122,41 @@ def main():
 
     if args.command == 'claim':
         any_failed = False
+        claims = _load_claims(root)
+        by = args.by if args.by is not None else os.environ.get('USER', 'unknown')
+        branch = args.branch if args.branch is not None else _get_git_branch()
+        dirty = False
         for mod in args.modules:
-            ok, msg = add_claim(root, mod, by=args.by, branch=args.branch)
-            print(f"  {'✓' if ok else '✗'} {msg}")
-            if not ok:
+            existing = claims.get(mod)
+            if existing and existing.get('by') != by:
+                msg = (f"'{mod}' already claimed by {existing['by']} "
+                       f"(branch: {existing.get('branch', '?')})")
+                print(f"  {'✗'} {msg}")
                 any_failed = True
+            else:
+                claims[mod] = {
+                    'by': by,
+                    'branch': branch,
+                    'since': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                }
+                dirty = True
+                print(f"  {'✓'} Claimed '{mod}' for {by}")
+        if dirty:
+            _save_claims(root, claims)
         if any_failed:
             sys.exit(1)
     elif args.command == 'release':
+        claims = _load_claims(root)
+        dirty = False
         for mod in args.modules:
-            ok, msg = release_claim(root, mod)
-            print(f"  {'✓' if ok else '✗'} {msg}")
+            if mod not in claims:
+                print(f"  {'✓'} '{mod}' was not claimed")
+            else:
+                del claims[mod]
+                dirty = True
+                print(f"  {'✓'} Released '{mod}'")
+        if dirty:
+            _save_claims(root, claims)
     elif args.command == 'status':
         print_status(root)
     elif args.command == 'clear':

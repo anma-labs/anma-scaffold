@@ -15,7 +15,6 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lint_contracts import parse_yaml_file, load_all_contracts
 
 
 def find_project_root(start='.'):
@@ -33,6 +32,7 @@ def build_consumer_map(root):
     graph_file = root / 'GRAPH.yaml'
     if not graph_file.exists():
         return {}
+    from lint_contracts import parse_yaml_file
     graph = parse_yaml_file(str(graph_file))
     if not graph or not isinstance(graph.get('modules'), dict):
         return {}
@@ -90,15 +90,19 @@ def main():
     consumer_map = build_consumer_map(root)
 
     if args.module not in consumer_map:
-        contracts = load_all_contracts(root)
-        if args.module not in contracts:
+        from discover import discover_modules
+        try:
+            discovered = discover_modules(root)
+        except ValueError:
+            discovered = {}
+        if args.module not in discovered:
             print(f"Module '{args.module}' not found.", file=sys.stderr)
             sys.exit(1)
 
     impact = find_impact(args.module, consumer_map, max_depth=args.depth)
+    total = sum(len(mods) for mods in impact.values())
 
     if args.json:
-        total = sum(len(mods) for mods in impact.values())
         data = {
             'module': args.module,
             'total_affected': total,
@@ -106,7 +110,6 @@ def main():
         }
         print(json.dumps(data, indent=2))
     else:
-        total = sum(len(mods) for mods in impact.values())
         if total == 0:
             print(f"No modules depend on '{args.module}'.")
         else:
