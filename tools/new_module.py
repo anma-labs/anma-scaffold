@@ -13,16 +13,13 @@ Zero external dependencies — uses the same YAML parser as lint_contracts.py.
 """
 
 import argparse
-import os
 import re
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Import the YAML parser from lint_contracts
 sys.path.insert(0, str(Path(__file__).parent))
-from lint_contracts import parse_yaml_file
 from discover import discover_modules
 
 

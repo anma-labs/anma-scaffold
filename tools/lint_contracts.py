@@ -19,7 +19,7 @@ import importlib.util
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-from discover import discover_modules, discover_domains, get_module_domain
+from discover import discover_modules, discover_domains
 
 # ---------------------------------------------------------------------------
 # YAML parsing — uses PyYAML when available, falls back to built-in parser.

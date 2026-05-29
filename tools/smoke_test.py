@@ -13,7 +13,6 @@ Zero external dependencies.
 """
 
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -27,13 +26,6 @@ TOOLS_DIR = Path(__file__).parent
 PROJECT_ROOT = TOOLS_DIR.parent
 
 
-def _module_files_present(proj, module, required):
-    try:
-        module_paths = discover_modules(proj)
-    except ValueError:
-        module_paths = {}
-    mod_dir = module_paths.get(module, proj / 'modules' / module)
-    return all((mod_dir / f).exists() for f in required), mod_dir
 VERBOSE = '-v' in sys.argv or '--verbose' in sys.argv
 
 

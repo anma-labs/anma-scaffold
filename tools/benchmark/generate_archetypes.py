@@ -14,8 +14,6 @@ Usage:
 """
 
 import argparse
-import os
-import textwrap
 import yaml
 from pathlib import Path
 

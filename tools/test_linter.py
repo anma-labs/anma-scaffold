@@ -7,12 +7,10 @@ and CLI behavior. Run with: python3 test_linter.py
 Zero external dependencies — uses only stdlib unittest.
 """
 
-import os
 import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 # Import linter

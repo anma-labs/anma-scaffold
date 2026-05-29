@@ -14,7 +14,6 @@ Not a replacement for contract design — just a faster starting point than TBD 
 """
 
 import argparse
-import re
 import sys
 from pathlib import Path
 

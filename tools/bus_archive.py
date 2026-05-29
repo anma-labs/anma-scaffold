@@ -13,7 +13,6 @@ Zero external dependencies.
 """
 
 import argparse
-import re
 import shutil
 import sys
 from datetime import datetime, timezone, timedelta

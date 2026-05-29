@@ -273,14 +273,6 @@ def graph_remove_module(root, name):
 # SCOPE.yaml (per-manager)
 # ---------------------------------------------------------------------------
 
-def read_scope(root, manager):
-    """Read a manager's SCOPE.yaml."""
-    path = Path(root) / 'managers' / manager / 'SCOPE.yaml'
-    if not path.exists():
-        return None
-    return parse_yaml_file(str(path)) or {}
-
-
 def scope_add_module(root, manager, module_name):
     """Add a module to a manager's SCOPE.yaml owns list."""
     path = Path(root) / 'managers' / manager / 'SCOPE.yaml'

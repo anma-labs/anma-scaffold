@@ -5,9 +5,6 @@ Each test reproduces the exact failure from the bug report to prevent
 regressions. Run with: python3 -m unittest tools.test_bug_regressions
 """
 
-import os
-import re
-import shutil
 import subprocess
 import sys
 import tempfile
