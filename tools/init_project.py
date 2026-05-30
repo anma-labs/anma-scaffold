@@ -72,6 +72,19 @@ def init_project(root):
             f"orchestrator: active\n"
         )
         print("Reset MANIFEST.yaml")
+    else:
+        manifest_path.write_text(
+            f"project: my-project\n"
+            f"version: 1\n"
+            f"updated: 2026-01-01T00:00:00Z\n"
+            f"\n"
+            f"modules: {{}}\n"
+            f"\n"
+            f"managers: {{}}\n"
+            f"\n"
+            f"orchestrator: active\n"
+        )
+        print("Created MANIFEST.yaml")
 
     # Reset GRAPH.yaml
     graph_path = root / 'GRAPH.yaml'
@@ -89,7 +102,8 @@ def init_project(root):
     for bus_subdir in ['deltas', 'requests']:
         bus_dir = root / 'BUS' / bus_subdir
         if not bus_dir.exists():
-            continue
+            bus_dir.mkdir(parents=True)
+            print(f"Created BUS/{bus_subdir}/")
         cleared = 0
         for f in bus_dir.iterdir():
             if f.name.endswith('.yaml') or f.name.endswith('.yml'):
@@ -100,6 +114,13 @@ def init_project(root):
         gitkeep = bus_dir / '.gitkeep'
         if not gitkeep.exists():
             gitkeep.touch()
+
+    # Create orchestrator/ and checks/ if missing
+    for dirname in ['orchestrator', 'checks']:
+        dirpath = root / dirname
+        if not dirpath.exists():
+            dirpath.mkdir(parents=True)
+            print(f"Created {dirname}/")
 
     print()
     print("Clean scaffold ready. Create your first module with:")

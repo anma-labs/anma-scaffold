@@ -285,6 +285,40 @@ def sync_all(root, regenerate_only=False, force=False):
         manifest_path.write_text('\n'.join(lines))
         updated.append('MANIFEST.yaml')
         print("  Rebuilt MANIFEST.yaml")
+    else:
+        modules_dict = {}
+        for mod_name in module_names:
+            mod_dir = module_paths[mod_name]
+            contract = all_contracts[mod_name]
+            status = contract.get('status', 'draft')
+            entry = {'status': status}
+            domain = get_module_domain(root, mod_dir)
+            if domain:
+                entry['domain'] = domain
+            modules_dict[mod_name] = entry
+
+        lines = [
+            "project: my-project",
+            "version: 1",
+            f"updated: {timestamp_now()}",
+            "",
+            "modules:",
+        ]
+        for mod_name in sorted(modules_dict):
+            entry = modules_dict[mod_name]
+            parts = [f"status: {entry['status']}"]
+            if 'domain' in entry:
+                parts.append(f"domain: {entry['domain']}")
+            lines.append(f"  {mod_name}: {{ {', '.join(parts)} }}")
+        lines.append("")
+        lines.append("managers: {}")
+        lines.append("")
+        lines.append("orchestrator: active")
+        lines.append("")
+
+        manifest_path.write_text('\n'.join(lines))
+        updated.append('MANIFEST.yaml')
+        print(f"  Created MANIFEST.yaml ({len(modules_dict)} modules)")
 
     if not regenerate_only:
         # Step 5: Clean orphaned BUS files
